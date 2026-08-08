@@ -675,7 +675,23 @@ async def create_task(
     ] = None,
     due: Annotated[
         str | None,
-        Field(description="Due date in YYYY-MM-DD format, e.g. '2026-05-09'."),
+        Field(
+            description=(
+                "Due date, YYYY-MM-DD (e.g. '2026-05-09'). For time-blocking, pass a full "
+                "ISO 8601 datetime instead (e.g. '2026-05-09T09:00:00+05:30') and pair with "
+                "due_end to set a specific time slot."
+            )
+        ),
+    ] = None,
+    due_end: Annotated[
+        str | None,
+        Field(
+            description=(
+                "End of the time block, ISO 8601 datetime (e.g. '2026-05-09T10:30:00+05:30'). "
+                "Only meaningful when due includes a time — sets Due as a date range for "
+                "time-blocking. Ignored if due is not also set."
+            )
+        ),
     ] = None,
     priority: Annotated[
         str | None,
@@ -750,7 +766,7 @@ async def create_task(
     if status:
         props["Status"] = _prop_status(status)
     if due:
-        props["Due"] = _prop_date(due)
+        props["Due"] = _prop_date(due, due_end)
     if priority:
         props["Priority"] = _prop_status(priority)
     if project_id:
@@ -802,7 +818,21 @@ async def update_task(
     ] = None,
     due: Annotated[
         str | None,
-        Field(description="New due date in YYYY-MM-DD format, e.g. '2026-05-09'."),
+        Field(
+            description=(
+                "New due date, YYYY-MM-DD, or a full ISO 8601 datetime for time-blocking "
+                "(e.g. '2026-05-09T09:00:00+05:30'), paired with due_end."
+            )
+        ),
+    ] = None,
+    due_end: Annotated[
+        str | None,
+        Field(
+            description=(
+                "End of the time block, ISO 8601 datetime. Only meaningful when due includes "
+                "a time. Ignored if due is not also set."
+            )
+        ),
     ] = None,
     priority: Annotated[
         str | None,
@@ -862,7 +892,7 @@ async def update_task(
     if status is not None:
         props["Status"] = _prop_status(status)
     if due is not None:
-        props["Due"] = _prop_date(due)
+        props["Due"] = _prop_date(due, due_end)
     if priority is not None:
         props["Priority"] = _prop_status(priority)
     if project_id is not None:
@@ -2440,7 +2470,15 @@ class BulkTaskUpdate(BaseModel):
         default=None, description="New status."
     )
     due: str | None = Field(
-        default=None, description="New due date in YYYY-MM-DD format, e.g. '2026-05-09'."
+        default=None,
+        description=(
+            "New due date, YYYY-MM-DD, or a full ISO 8601 datetime for time-blocking, "
+            "paired with due_end."
+        ),
+    )
+    due_end: str | None = Field(
+        default=None,
+        description="End of the time block, ISO 8601 datetime. Only meaningful with due set.",
     )
     priority: Literal["Low", "Medium", "High"] | None = Field(
         default=None, description="New priority."
@@ -2512,7 +2550,7 @@ async def bulk_update_tasks(
             if update.status is not None:
                 props["Status"] = _prop_status(update.status)
             if update.due is not None:
-                props["Due"] = _prop_date(update.due)
+                props["Due"] = _prop_date(update.due, update.due_end)
             if update.priority is not None:
                 props["Priority"] = _prop_status(update.priority)
             if update.project_id is not None:

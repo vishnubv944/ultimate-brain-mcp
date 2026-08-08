@@ -189,6 +189,11 @@ def format_task(
         "due": _date_start(props.get("Due", {})),
         "my_day": _checkbox(props.get("My Day", {})),
     }
+    # Due end — present when Due is a time-blocked range (start+end datetime),
+    # not just a single due date.
+    due_full = _date(props.get("Due", {}))
+    if due_full and due_full.get("end"):
+        result["due_end"] = due_full["end"]
     # Optional relations
     project_ids = _relation(props.get("Project", {}))
     if project_ids:
