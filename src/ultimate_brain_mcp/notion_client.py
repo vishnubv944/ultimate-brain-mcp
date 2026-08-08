@@ -295,18 +295,34 @@ class NotionClient:
     # ------------------------------------------------------------------
 
     async def create_page(
-        self, ds_id: str, properties: dict, *, children: list[dict] | None = None
+        self,
+        ds_id: str,
+        properties: dict,
+        *,
+        children: list[dict] | None = None,
+        template: dict | None = None,
     ) -> dict:
         """POST /v1/pages — create a page in the given data source.
 
         Accepts arbitrarily large/deep *children*. Internally chunks the
         first 100 top-level blocks into the create call, appends the
         remainder, and re-appends any subtrees deeper than 2 levels.
+
+        *template* applies a data source template, e.g. ``{"type": "default"}``
+        or ``{"type": "template_id", "template_id": "..."}`` — see
+        :meth:`list_templates`. Per the Notion API, a template and *children*
+        are mutually exclusive on create; passing both raises ``ValueError``
+        rather than letting Notion reject it with a less clear 400.
         """
+        if template and children:
+            raise ValueError("template and children are mutually exclusive on page create")
+
         body: dict = {
             "parent": {"data_source_id": ds_id},
             "properties": properties,
         }
+        if template:
+            body["template"] = template
 
         if not children:
             resp = await self._request("POST", "/pages", json=body)
@@ -610,6 +626,37 @@ class NotionClient:
         resp = await self._request("GET", f"/databases/{database_id}")
         return resp.json()
 
+    async def get_property_item(
+        self, page_id: str, property_id: str, *, page_size: int = 100
+    ) -> list[str]:
+        """GET /v1/pages/{page_id}/properties/{property_id} — paginated relation
+        items, flattened to related-page ids.
+
+        Notion caps relation properties at 25 items on a plain page GET
+        (``has_more`` is set on the inline value); this endpoint is the only
+        way to fetch the rest. *property_id* is the property's short id
+        (``page["properties"][name]["id"]`` from a prior ``get_page`` call),
+        not the human-readable property name.
+        """
+        ids: list[str] = []
+        cursor: str | None = None
+        for _ in range(MAX_READ_PAGES):
+            params: dict = {"page_size": page_size}
+            if cursor:
+                params["start_cursor"] = cursor
+            resp = await self._request(
+                "GET", f"/pages/{page_id}/properties/{property_id}", params=params
+            )
+            data = resp.json()
+            for item in data.get("results", []):
+                rel_id = item.get("relation", {}).get("id")
+                if rel_id:
+                    ids.append(rel_id)
+            if not data.get("has_more"):
+                break
+            cursor = data.get("next_cursor")
+        return ids
+
     async def get_data_source(self, ds_id: str) -> dict:
         """GET /v1/data_sources/{ds_id} — returns schema with `properties` map.
 
@@ -618,3 +665,25 @@ class NotionClient:
         """
         resp = await self._request("GET", f"/data_sources/{ds_id}")
         return resp.json()
+
+    async def list_templates(self, ds_id: str) -> list[dict]:
+        """GET /v1/data_sources/{ds_id}/templates — list a data source's page
+        templates ({id, name, is_default}), paginated. Used so create_project
+        can offer/apply a named or default template the same way UB's own
+        paid template automation does, rather than inventing new structure.
+        """
+        all_results: list[dict] = []
+        cursor: str | None = None
+        for _ in range(10):
+            params: dict = {"page_size": 100}
+            if cursor:
+                params["start_cursor"] = cursor
+            resp = await self._request(
+                "GET", f"/data_sources/{ds_id}/templates", params=params
+            )
+            data = resp.json()
+            all_results.extend(data.get("templates", []))
+            if not data.get("has_more"):
+                break
+            cursor = data.get("next_cursor")
+        return all_results

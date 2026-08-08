@@ -242,6 +242,26 @@ def format_task(
     if recur_unit:
         interval = int(recur_interval) if recur_interval else 1
         result["recurrence"] = f"every {interval} {recur_unit}"
+    # Next Due — Notion's own formula, authoritative for advancing a recurring
+    # task's date (see complete_task/_advance_date). Read-only.
+    next_due = _formula(props.get("Next Due", {}))
+    if next_due:
+        result["next_due"] = next_due
+    # Enforce Schedule — real checkbox property, confirmed present live.
+    if "Enforce Schedule" in props:
+        result["enforce_schedule"] = _checkbox(props.get("Enforce Schedule", {}))
+    # Time tracking formulas (Work Sessions rollups). Read-only.
+    time_tracked = _formula(props.get("Time Tracked", {}))
+    if time_tracked:
+        result["time_tracked"] = time_tracked
+    time_tracking_status = _formula(props.get("Time Tracking Status", {}))
+    if time_tracking_status:
+        result["time_tracking_status"] = time_tracking_status
+    # Smart List (Formula) — Notion's own computed GTD bucket. Read-only:
+    # there is no writable Smart List select backing it in this workspace.
+    smart_list = _formula(props.get("Smart List (Formula)", {}))
+    if smart_list:
+        result["smart_list"] = smart_list
     # Completion date
     done_date = _date_start(props.get("Completed", {}))
     if done_date:
@@ -273,6 +293,16 @@ def format_project(page: dict) -> dict:
     archived = _checkbox(props.get("Archived", {}))
     if archived:
         result["archived"] = True
+    # Notion-computed formulas — read-only, confirmed present live.
+    progress = _formula(props.get("Progress", {}))
+    if progress is not None:
+        result["progress"] = progress
+    meta = _formula(props.get("Meta", {}))
+    if meta:
+        result["meta"] = meta
+    time_tracked_mins = _formula(props.get("Time Tracked (Mins)", {}))
+    if time_tracked_mins:
+        result["time_tracked_mins"] = time_tracked_mins
     return _annotate_truncation(result, page)
 
 
@@ -342,6 +372,64 @@ def format_goal(page: dict) -> dict:
     achieved = _date_start(props.get("Achieved", {}))
     if achieved:
         result["achieved_date"] = achieved
+    return _annotate_truncation(result, page)
+
+
+def format_milestone(page: dict, *, goal_property_name: str | None = None) -> dict:
+    """Format a Milestone page into an agent-friendly dict.
+
+    Only ``name`` is guaranteed — Goal relation / Date Completed / Target
+    Deadline are workspace-dependent (confirmed absent in at least one real
+    workspace), so they're only read when *goal_property_name* is supplied
+    or the properties are actually present on the page.
+    """
+    props = page.get("properties", {})
+    result: dict = {
+        "id": _page_id(page),
+        "url": _page_url(page),
+        "name": _title(props.get("Name", {})),
+    }
+    if goal_property_name:
+        goal_ids = _relation(props.get(goal_property_name, {}))
+        if goal_ids:
+            result["goal_ids"] = goal_ids
+    date_completed = _date_start(props.get("Date Completed", {}))
+    if date_completed:
+        result["date_completed"] = date_completed
+    target_deadline = _date_start(props.get("Target Deadline", {}))
+    if target_deadline:
+        result["target_deadline"] = target_deadline
+    return _annotate_truncation(result, page)
+
+
+def format_work_session(page: dict) -> dict:
+    """Format a Work Session page into an agent-friendly dict."""
+    props = page.get("properties", {})
+    result: dict = {
+        "id": _page_id(page),
+        "url": _page_url(page),
+        "name": _title(props.get("Name", {})),
+    }
+    start = _date_start(props.get("Start", {}))
+    if start:
+        result["start"] = start
+    end = _date_start(props.get("End", {}))
+    if end:
+        result["end"] = end
+    else:
+        result["active"] = bool(start)
+    duration = _formula(props.get("Duration", {}))
+    if duration:
+        result["duration"] = duration
+    duration_mins = _formula(props.get("Duration (Mins)", {}))
+    if duration_mins is not None:
+        result["duration_mins"] = duration_mins
+    task_ids = _relation(props.get("Tasks", {}))
+    if task_ids:
+        result["task_ids"] = task_ids
+    team_member = _people(props.get("Team Member", {}))
+    if team_member:
+        result["team_member"] = team_member
     return _annotate_truncation(result, page)
 
 

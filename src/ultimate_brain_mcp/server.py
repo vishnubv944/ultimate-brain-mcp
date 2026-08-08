@@ -31,10 +31,12 @@ from .formatters import (
     blocks_to_text,
     format_generic_page,
     format_goal,
+    format_milestone,
     format_note,
     format_project,
     format_tag,
     format_task,
+    format_work_session,
     text_to_blocks,
 )
 from .notion_client import NotionAPIError, NotionClient, PartialWriteError
@@ -75,6 +77,20 @@ class TasksSchema:
     labels_options: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class MilestonesSchema:
+    """Live introspection of the Milestones data source. Confirmed against a
+    real workspace: only Name is guaranteed to exist — Goal relation, Date
+    Completed, and Target Deadline are all optional and workspace-dependent,
+    so search/create/update_milestone only touch whichever of these are
+    actually present rather than assuming the full documented schema.
+    """
+
+    goal_property_name: str | None = None  # 'Goal' or 'Goals', whichever exists
+    has_date_completed: bool = False
+    has_target_deadline: bool = False
+
+
 @dataclass
 class AppContext:
     client: NotionClient
@@ -89,6 +105,10 @@ class AppContext:
     # means discovery failed and the location parameter on tools will no-op
     # with a `_warning` field in results.
     tasks_schema: TasksSchema = field(default_factory=TasksSchema)
+    # Live Milestones property schema, same best-effort-discovery contract
+    # as tasks_schema. Empty/default means Milestones is either unconfigured
+    # or only has Name — search/create/update_milestone degrade accordingly.
+    milestones_schema: MilestonesSchema = field(default_factory=MilestonesSchema)
     # Whether the page-markdown endpoints (API 2026-03-11) are available.
     # None = unknown (not probed yet); set True on first success, False on first
     # version-unavailable error. Once True, markdown errors are surfaced rather
@@ -124,12 +144,22 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         )
         tasks_schema = TasksSchema()
     try:
+        milestones_schema = await _discover_milestones_schema(client, config)
+    except Exception as e:  # noqa: BLE001 — startup must not crash on discovery
+        print(
+            f"[ultimate-brain-mcp] Milestones schema discovery crashed ({e!r}); "
+            f"search/create/update_milestone will only touch Name for this session.",
+            file=sys.stderr,
+        )
+        milestones_schema = MilestonesSchema()
+    try:
         yield AppContext(
             client=client,
             config=config,
             note_types=note_types,
             note_types_source=note_types_source,
             tasks_schema=tasks_schema,
+            milestones_schema=milestones_schema,
         )
     finally:
         await client.close()
@@ -194,6 +224,42 @@ async def _discover_tasks_schema(client: NotionClient, config: UBConfig) -> Task
         location_property_type=location_meta.get("type") if location_meta.get("exists") else None,
         location_options=tuple(location_meta.get("options", []) or ()),
         labels_options=tuple(labels_meta.get("options", []) or ()),
+    )
+
+
+async def _discover_milestones_schema(client: NotionClient, config: UBConfig) -> MilestonesSchema:
+    """Introspect the Milestones data source (if configured) for the Goal
+    relation, Date Completed, and Target Deadline properties. Live-verified
+    against a real workspace where Milestones only has Name populated —
+    these are genuinely optional, not just usually-empty, so this discovers
+    presence rather than assuming the fully-documented schema.
+
+    Falls back to an empty ``MilestonesSchema()`` (Name-only) if Milestones
+    isn't configured or discovery fails for any reason.
+    """
+    ds_id = config.secondary_ds.get("Milestones")
+    if not ds_id:
+        return MilestonesSchema()
+    try:
+        schema = await client.get_data_source(ds_id)
+    except Exception as e:  # noqa: BLE001 — discovery is best-effort
+        print(
+            f"[ultimate-brain-mcp] Milestones schema fetch failed ({e!r}); "
+            f"falling back to Name-only.",
+            file=sys.stderr,
+        )
+        return MilestonesSchema()
+
+    goal_meta = extract_property_metadata(schema, "Goal")
+    if not goal_meta.get("exists"):
+        goal_meta = extract_property_metadata(schema, "Goals")
+    date_completed_meta = extract_property_metadata(schema, "Date Completed")
+    target_deadline_meta = extract_property_metadata(schema, "Target Deadline")
+
+    return MilestonesSchema(
+        goal_property_name=goal_meta.get("name") if goal_meta.get("exists") else None,
+        has_date_completed=bool(date_completed_meta.get("exists")),
+        has_target_deadline=bool(target_deadline_meta.get("exists")),
     )
 
 
@@ -271,6 +337,63 @@ def _handle_api_error(e: NotionAPIError, hint: str = "") -> dict:
             "page_id": e.page_id,
         }
     return err
+
+
+async def _resolve_truncated_relations(app: AppContext, page: dict, result: dict) -> None:
+    """Mutate *result* in place: for each property name flagged in
+    ``result["_truncated_relations"]`` (set by ``_annotate_truncation`` when a
+    relation hits Notion's 25-item inline cap), fetch the full related-page id
+    list via the paginated property endpoint and attach it under
+    ``result["_resolved_relations"][name]``. Any property that still can't be
+    resolved (missing property id, API error) stays listed in
+    ``_truncated_relations``; fully-resolved properties are removed from it.
+    """
+    truncated = result.get("_truncated_relations")
+    if not truncated:
+        return
+    props = page.get("properties", {})
+    page_id = page.get("id", "")
+    resolved: dict[str, list[str]] = {}
+    still_truncated: list[str] = []
+    for name in truncated:
+        prop_id = props.get(name, {}).get("id")
+        if not prop_id:
+            still_truncated.append(name)
+            continue
+        try:
+            resolved[name] = await app.client.get_property_item(page_id, prop_id)
+        except NotionAPIError:
+            still_truncated.append(name)
+    if resolved:
+        result["_resolved_relations"] = resolved
+    if still_truncated:
+        result["_truncated_relations"] = still_truncated
+    else:
+        result.pop("_truncated_relations", None)
+
+
+async def _find_possible_duplicate(
+    app: AppContext, ds_id: str, name: str, formatter
+) -> dict | None:
+    """Look for an existing, non-archived item with the exact same title.
+
+    Warning-only, never blocking — surfaced on create_task/create_note as
+    `possible_duplicate` so the caller (human or agent) can decide whether
+    to proceed. Errors during the check are swallowed: a failed duplicate
+    check should never prevent the actual create from happening.
+    """
+    try:
+        pages = await app.client.query_all(
+            ds_id,
+            filter={"property": "Name", "title": {"equals": name}},
+            max_pages=1,
+        )
+    except NotionAPIError:
+        return None
+    if not pages:
+        return None
+    dup = formatter(pages[0])
+    return {"id": dup.get("id"), "name": dup.get("name"), "url": dup.get("url")}
 
 
 async def _bounded_gather(coros: list, *, limit: int = _DELETE_CONCURRENCY) -> None:
@@ -594,6 +717,15 @@ async def create_task(
             )
         ),
     ] = None,
+    enforce_schedule: Annotated[
+        bool | None,
+        Field(
+            description=(
+                "Sets the Enforce Schedule checkbox for recurring tasks (keeps the due "
+                "date on a fixed cadence instead of shifting from completion date)."
+            )
+        ),
+    ] = None,
     content: Annotated[
         str | None,
         Field(
@@ -631,6 +763,8 @@ async def create_task(
         props["Parent Task"] = _prop_relation([parent_task_id])
     if tag_ids:
         props["Tag"] = _prop_relation(tag_ids)
+    if enforce_schedule is not None:
+        props["Enforce Schedule"] = _prop_checkbox(enforce_schedule)
     if location is not None:
         payload, warning = _build_location_payload(app.tasks_schema, location)
         if payload is not None and app.tasks_schema.location_property_name:
@@ -640,11 +774,17 @@ async def create_task(
 
     children = text_to_blocks(content) if content else None
 
+    possible_duplicate = await _find_possible_duplicate(
+        app, app.config.tasks_ds_id, name, format_task
+    )
+
     try:
         page = await app.client.create_page(app.config.tasks_ds_id, props, children=children)
         result = format_task(page, location_property_name=app.tasks_schema.location_property_name)
         if location_warning:
             result["_warning"] = location_warning
+        if possible_duplicate:
+            result["possible_duplicate"] = possible_duplicate
         return result
     except NotionAPIError as e:
         return _handle_api_error(e, "Check that project/parent IDs are valid.")
@@ -697,6 +837,15 @@ async def update_task(
             )
         ),
     ] = None,
+    enforce_schedule: Annotated[
+        bool | None,
+        Field(
+            description=(
+                "Sets the Enforce Schedule checkbox for recurring tasks (keeps the due "
+                "date on a fixed cadence instead of shifting from completion date)."
+            )
+        ),
+    ] = None,
     ctx: Context = None,
 ) -> dict:
     """Update any task properties. Only provided fields are changed.
@@ -726,6 +875,8 @@ async def update_task(
         props["Parent Task"] = _prop_relation([parent_task_id])
     if tag_ids is not None:
         props["Tag"] = _prop_relation(tag_ids)
+    if enforce_schedule is not None:
+        props["Enforce Schedule"] = _prop_checkbox(enforce_schedule)
     if location is not None:
         payload, warning = _build_location_payload(app.tasks_schema, location)
         if payload is not None and app.tasks_schema.location_property_name:
@@ -765,16 +916,30 @@ async def complete_task(
         # Check for recurrence
         recurrence = task.get("recurrence", "")
         if recurrence:
-            # Recurring task: reset to To Do and advance due date
+            # Recurring task: reset to To Do and advance due date. Prefer
+            # Notion's own `Next Due` formula — it already understands every
+            # recur unit (Nth weekday of month, last day/weekday, Days-based
+            # weekday recurrence), which the day/week/month fallback below
+            # cannot parse and would otherwise silently mis-advance.
             current_due = task.get("due")
-            new_due = _advance_date(current_due, recurrence) if current_due else None
+            new_due = task.get("next_due") or (
+                _advance_date(current_due, recurrence) if current_due else None
+            )
             props: dict = {"Status": _prop_status("To Do")}
             if new_due:
                 props["Due"] = _prop_date(new_due)
             props["My Day"] = _prop_checkbox(False)
             page = await app.client.update_page(task_id, props)
             result = format_task(page, location_property_name=loc_name)
-            result["_note"] = f"Recurring task reset. Next due: {new_due or 'unchanged'}"
+            if new_due:
+                result["_note"] = f"Recurring task reset. Next due: {new_due}"
+            else:
+                result["_warning"] = (
+                    "Recurring task reset, but the next due date could not be "
+                    "determined (no Next Due formula value and the recurrence "
+                    "pattern wasn't a simple day/week/month interval). Due date "
+                    "left unchanged — check the task in Notion."
+                )
             return result
         else:
             # Non-recurring: mark Done
@@ -790,7 +955,15 @@ async def complete_task(
 
 
 def _advance_date(current: str, recurrence: str) -> str | None:
-    """Advance a date by the recurrence interval. Supports 'every N days/weeks/months'."""
+    """Advance a date by the recurrence interval. Supports 'every N days/weeks/months'.
+
+    Fallback path only — complete_task prefers Notion's own `Next Due` formula,
+    which correctly handles every recur unit (Nth weekday of month, last day/
+    weekday, Days-based weekday recurrence). This function only understands
+    simple day/week/month intervals and returns None rather than guessing when
+    it can't parse the pattern — silently defaulting to "+1 week" previously
+    produced a wrong due date for any advanced recur unit.
+    """
     try:
         dt = datetime.fromisoformat(current)
     except (ValueError, TypeError):
@@ -802,8 +975,7 @@ def _advance_date(current: str, recurrence: str) -> str | None:
 
     match = re.match(r"every\s+(\d+)?\s*(day|week|month)s?", rec)
     if not match:
-        # Default: advance by 1 week
-        return (dt + timedelta(weeks=1)).date().isoformat()
+        return None
 
     n = int(match.group(1)) if match.group(1) else 1
     unit = match.group(2)
@@ -812,11 +984,8 @@ def _advance_date(current: str, recurrence: str) -> str | None:
         new_dt = dt + timedelta(days=n)
     elif unit == "week":
         new_dt = dt + timedelta(weeks=n)
-    elif unit == "month":
-        # Approximate: add 30 days per month
+    else:  # month — approximate: add 30 days per month
         new_dt = dt + timedelta(days=30 * n)
-    else:
-        new_dt = dt + timedelta(weeks=1)
 
     return new_dt.date().isoformat()
 
@@ -930,6 +1099,16 @@ async def search_projects(
 )
 async def get_project_detail(
     project_id: Annotated[str, Field(description="Project page ID.")],
+    resolve_relations: Annotated[
+        bool,
+        Field(
+            description=(
+                "If any relation on the project (e.g. Tag) is truncated at Notion's "
+                "25-item inline cap (see _truncated_relations), fetch the full list "
+                "via an extra paginated API call instead of leaving it flagged."
+            )
+        ),
+    ] = False,
     ctx: Context = None,
 ) -> dict:
     """Get a consolidated project view: properties, task breakdown by status, and recent notes.
@@ -952,6 +1131,8 @@ async def get_project_detail(
         )
 
         project = format_project(project_page)
+        if resolve_relations:
+            await _resolve_truncated_relations(app, project_page, project)
         loc_name = app.tasks_schema.location_property_name
         tasks = [format_task(t, location_property_name=loc_name) for t in task_pages]
         notes = [format_note(n) for n in note_pages[:10]]
@@ -971,6 +1152,24 @@ async def get_project_detail(
         return project
     except NotionAPIError as e:
         return _handle_api_error(e, "Use search_projects to find valid project IDs.")
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+async def list_project_templates(ctx: Context = None) -> dict:
+    """List page templates defined on the Projects database (name, id, whether it's the
+    default). Use the returned IDs with create_project's template_id param, or pass
+    use_default_template=true on create_project if one is marked default."""
+    app = _ctx(ctx)
+    try:
+        templates = await app.client.list_templates(app.config.projects_ds_id)
+        return {
+            "templates": [
+                {"id": t.get("id"), "name": t.get("name"), "is_default": t.get("is_default", False)}
+                for t in templates
+            ]
+        }
+    except NotionAPIError as e:
+        return _handle_api_error(e)
 
 
 @mcp.tool(
@@ -993,13 +1192,34 @@ async def create_project(
             description=(
                 "Page body content as markdown. Supports: # headings, - bullets, "
                 "1. numbered lists, - [ ] to-dos, ```code blocks```, > quotes, --- dividers, "
-                "and plain paragraphs."
+                "and plain paragraphs. Mutually exclusive with use_default_template/template_id."
+            )
+        ),
+    ] = None,
+    use_default_template: Annotated[
+        bool,
+        Field(
+            description=(
+                "Apply the Projects database's default page template (if one is set), "
+                "same as clicking 'New' in Notion. Mutually exclusive with content/template_id. "
+                "Use list_project_templates to see if a default exists and find named templates."
+            )
+        ),
+    ] = False,
+    template_id: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Apply a specific named template by ID instead of the default. "
+                "Use list_project_templates to find IDs. Mutually exclusive with content."
             )
         ),
     ] = None,
     ctx: Context = None,
 ) -> dict:
-    """Create a new project. Use search_tags to find tag IDs, search_goals for goal IDs."""
+    """Create a new project. Use search_tags to find tag IDs, search_goals for goal IDs.
+    Use list_project_templates + use_default_template/template_id to spin up a project
+    from an existing Notion template (e.g. one with pre-defined tasks) instead of blank."""
     app = _ctx(ctx)
     props: dict = {"Name": _prop_title(name)}
     if status:
@@ -1011,10 +1231,23 @@ async def create_project(
     if goal_id:
         props["Goal"] = _prop_relation([goal_id])
 
+    if (content and (use_default_template or template_id)) :
+        return _error(
+            "content is mutually exclusive with use_default_template/template_id "
+            "— Notion doesn't allow setting page body content on a templated create."
+        )
+
     children = text_to_blocks(content) if content else None
+    template: dict | None = None
+    if template_id:
+        template = {"type": "template_id", "template_id": template_id}
+    elif use_default_template:
+        template = {"type": "default"}
 
     try:
-        page = await app.client.create_page(app.config.projects_ds_id, props, children=children)
+        page = await app.client.create_page(
+            app.config.projects_ds_id, props, children=children, template=template
+        )
         return format_project(page)
     except NotionAPIError as e:
         return _handle_api_error(e)
@@ -1179,10 +1412,16 @@ async def create_note(
         props["URL"] = _prop_url(source_url)
 
     children = text_to_blocks(content) if content else None
+    possible_duplicate = await _find_possible_duplicate(
+        app, app.config.notes_ds_id, name, format_note
+    )
 
     try:
         page = await app.client.create_page(app.config.notes_ds_id, props, children=children)
-        return format_note(page)
+        result = format_note(page)
+        if possible_duplicate:
+            result["possible_duplicate"] = possible_duplicate
+        return result
     except NotionAPIError as e:
         return _handle_api_error(e)
 
@@ -1438,6 +1677,18 @@ async def search_goals(
 )
 async def get_goal_detail(
     goal_id: Annotated[str, Field(description="Goal page ID.")],
+    resolve_relations: Annotated[
+        bool,
+        Field(
+            description=(
+                "If any relation on the goal is truncated at Notion's 25-item inline "
+                "cap (see _truncated_relations), fetch the full list via an extra "
+                "paginated API call. Note: the 'projects' field below is always fully "
+                "resolved via a separate live query regardless of this flag — this "
+                "only affects the raw project_ids/tag_ids fields."
+            )
+        ),
+    ] = False,
     ctx: Context = None,
 ) -> dict:
     """Get goal properties plus all linked projects with their status and progress.
@@ -1446,6 +1697,8 @@ async def get_goal_detail(
     try:
         page = await app.client.get_page(goal_id)
         goal = format_goal(page)
+        if resolve_relations:
+            await _resolve_truncated_relations(app, page, goal)
 
         # Get linked projects
         project_ids = goal.get("project_ids", [])
@@ -2083,6 +2336,101 @@ async def daily_review_snapshot(
     }
 
 
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
+async def weekly_review_snapshot(
+    days_back: Annotated[
+        int, Field(description="How many days back to look for completed tasks.", ge=1, le=90)
+    ] = 7,
+    ctx: Context = None,
+) -> dict:
+    """Canonical weekly-cadence review: completed tasks over the period, all overdue
+    tasks, active projects (with Progress/Meta), active goals, and milestones (if
+    configured). Unlike daily_review_snapshot (task-bucket focused), this exists so
+    Goals/Milestones get checked on a regular cadence too — goals that are never
+    revisited between quarterly check-ins are a known failure mode this closes.
+
+    Use this once a week (or whatever cadence fits); use daily_review_snapshot for
+    the day-to-day task-triage view.
+    """
+    app = _ctx(ctx)
+    tz = ZoneInfo(app.config.timezone)
+    now_dt = datetime.now(tz)
+    today_iso = now_dt.date().isoformat()
+    period_start = (now_dt.date() - timedelta(days=days_back)).isoformat()
+
+    not_done = {"property": "Status", "status": {"does_not_equal": "Done"}}
+    completed_filter = {
+        "and": [
+            {"property": "Status", "status": {"equals": "Done"}},
+            {"property": "Completed", "date": {"on_or_after": period_start}},
+        ]
+    }
+    overdue_filter = {"and": [not_done, {"property": "Due", "date": {"on_or_before": today_iso}}]}
+    active_projects_filter = {
+        "or": [
+            {"property": "Status", "status": {"equals": "Doing"}},
+            {"property": "Status", "status": {"equals": "Ongoing"}},
+        ]
+    }
+    active_goals_filter = {"property": "Status", "status": {"equals": "Active"}}
+    milestones_ds_id = app.config.secondary_ds.get("Milestones")
+
+    fetches = [
+        app.client.query_all(app.config.tasks_ds_id, filter=completed_filter),
+        app.client.query_all(app.config.tasks_ds_id, filter=overdue_filter),
+        app.client.query_all(app.config.projects_ds_id, filter=active_projects_filter),
+        app.client.query_all(app.config.goals_ds_id, filter=active_goals_filter),
+    ]
+    if milestones_ds_id:
+        fetches.append(app.client.query_all(milestones_ds_id))
+
+    try:
+        fetched = await asyncio.gather(*fetches)
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+    completed_pages, overdue_pages, project_pages, goal_pages = fetched[:4]
+    milestone_pages = fetched[4] if milestones_ds_id else []
+
+    loc_name = app.tasks_schema.location_property_name
+    cap = _SNAPSHOT_BUCKET_CAP
+
+    def _fmt_tasks(pages: list[dict]) -> tuple[list[dict], bool]:
+        truncated = len(pages) > cap
+        return (
+            [format_task(p, location_property_name=loc_name) for p in pages[:cap]],
+            truncated,
+        )
+
+    completed, t_completed = _fmt_tasks(completed_pages)
+    overdue, t_overdue = _fmt_tasks(overdue_pages)
+
+    return {
+        "period": {"from": period_start, "to": today_iso, "days_back": days_back},
+        "completed_this_period": completed,
+        "overdue": overdue,
+        "active_projects": [format_project(p) for p in project_pages[:cap]],
+        "active_goals": [format_goal(p) for p in goal_pages[:cap]],
+        "milestones": (
+            [
+                format_milestone(p, goal_property_name=app.milestones_schema.goal_property_name)
+                for p in milestone_pages[:cap]
+            ]
+            if milestones_ds_id
+            else None
+        ),
+        "truncated": {
+            "completed_this_period": t_completed,
+            "overdue": t_overdue,
+            "active_projects": len(project_pages) > cap,
+            "active_goals": len(goal_pages) > cap,
+            "milestones": len(milestone_pages) > cap if milestones_ds_id else False,
+        },
+    }
+
+
 class BulkTaskUpdate(BaseModel):
     """One row in a bulk_update_tasks call. Mirrors update_task parameters."""
 
@@ -2111,6 +2459,9 @@ class BulkTaskUpdate(BaseModel):
             "Ignored if Tasks has no Location property — see "
             "daily_review_snapshot.task_schema.has_location_property."
         ),
+    )
+    enforce_schedule: bool | None = Field(
+        default=None, description="Sets the Enforce Schedule checkbox for recurring tasks."
     )
 
 
@@ -2174,6 +2525,8 @@ async def bulk_update_tasks(
                 props["Parent Task"] = _prop_relation([update.parent_task_id])
             if update.tag_ids is not None:
                 props["Tag"] = _prop_relation(update.tag_ids)
+            if update.enforce_schedule is not None:
+                props["Enforce Schedule"] = _prop_checkbox(update.enforce_schedule)
             if update.location is not None:
                 payload, warning = _build_location_payload(app.tasks_schema, update.location)
                 if payload is not None and app.tasks_schema.location_property_name:
@@ -2216,6 +2569,288 @@ async def bulk_update_tasks(
         "results": results,
         "summary": {"ok": ok_count, "failed": failed_count, "total": len(results)},
     }
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
+)
+async def clear_my_day(ctx: Context = None) -> dict:
+    """Unset My Day on every task currently flagged for it. Thin wrapper over the
+    same bulk-update machinery as bulk_update_tasks — finds all My Day tasks and
+    unsets the flag on each in one call, for end-of-day/reset workflows."""
+    app = _ctx(ctx)
+    try:
+        pages = await app.client.query_all(
+            app.config.tasks_ds_id,
+            filter={"property": "My Day", "checkbox": {"equals": True}},
+        )
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+    if not pages:
+        return {"results": [], "summary": {"ok": 0, "failed": 0, "total": 0}}
+
+    sem = asyncio.Semaphore(_BULK_UPDATE_CONCURRENCY)
+
+    async def _clear_one(page: dict) -> dict:
+        task_id = page.get("id", "")
+        async with sem:
+            try:
+                updated = await app.client.update_page(task_id, {"My Day": _prop_checkbox(False)})
+                return {
+                    "task_id": task_id,
+                    "ok": True,
+                    "task": format_task(
+                        updated, location_property_name=app.tasks_schema.location_property_name
+                    ),
+                }
+            except NotionAPIError as e:
+                err = _handle_api_error(e)
+                return {"task_id": task_id, "ok": False, "error": err.get("error", str(e))}
+
+    results = await asyncio.gather(*(_clear_one(p) for p in pages))
+    ok_count = sum(1 for r in results if r.get("ok"))
+    return {
+        "results": results,
+        "summary": {"ok": ok_count, "failed": len(results) - ok_count, "total": len(results)},
+    }
+
+
+# =========================================================================
+#  MILESTONES & WORK SESSIONS
+# =========================================================================
+
+
+def _secondary_ds_id(app: AppContext, name: str) -> str | None:
+    return app.config.secondary_ds.get(name)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+async def search_milestones(
+    query: Annotated[str | None, Field(description="Text to search for in milestone names.")] = None,
+    goal_id: Annotated[
+        str | None,
+        Field(description="Filter by linked goal page ID. Only works if a Goal relation exists."),
+    ] = None,
+    limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 50,
+    ctx: Context = None,
+) -> list[dict] | dict:
+    """Search Milestones by name and, if this workspace has one, the Goal relation.
+    Milestones' schema varies by workspace — only Name is guaranteed; Date Completed/
+    Target Deadline/Goal are surfaced when present."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "Milestones")
+    if not ds_id:
+        return _error("Milestones database not configured. Set UB_MILESTONES_DS_ID in .env.")
+
+    schema = app.milestones_schema
+    filters: list[dict] = []
+    if query:
+        filters.append({"property": "Name", "title": {"contains": query}})
+    if goal_id:
+        if not schema.goal_property_name:
+            return _error(
+                "This workspace's Milestones database has no Goal relation to filter by."
+            )
+        filters.append({"property": schema.goal_property_name, "relation": {"contains": goal_id}})
+
+    filter_obj: dict | None = None
+    if len(filters) == 1:
+        filter_obj = filters[0]
+    elif len(filters) > 1:
+        filter_obj = {"and": filters}
+
+    try:
+        pages = await app.client.query_all(ds_id, filter=filter_obj)
+        return [
+            format_milestone(p, goal_property_name=schema.goal_property_name)
+            for p in pages[:limit]
+        ]
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def create_milestone(
+    name: Annotated[str, Field(description="Milestone name.")],
+    goal_id: Annotated[
+        str | None,
+        Field(description="Goal page ID to link. Only works if this workspace has a Goal relation."),
+    ] = None,
+    date_completed: Annotated[
+        str | None,
+        Field(description="Date Completed (YYYY-MM-DD). Only set if this property exists."),
+    ] = None,
+    target_deadline: Annotated[
+        str | None,
+        Field(description="Target Deadline (YYYY-MM-DD). Only set if this property exists."),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Create a Milestone. goal_id/date_completed/target_deadline are only applied if
+    this workspace's Milestones database actually has those properties — check the
+    response's _warning field if one was silently skipped."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "Milestones")
+    if not ds_id:
+        return _error("Milestones database not configured. Set UB_MILESTONES_DS_ID in .env.")
+
+    schema = app.milestones_schema
+    props: dict = {"Name": _prop_title(name)}
+    warnings: list[str] = []
+
+    if goal_id:
+        if schema.goal_property_name:
+            props[schema.goal_property_name] = _prop_relation([goal_id])
+        else:
+            warnings.append("goal_id ignored — no Goal relation on this workspace's Milestones DB.")
+    if date_completed:
+        if schema.has_date_completed:
+            props["Date Completed"] = _prop_date(date_completed)
+        else:
+            warnings.append("date_completed ignored — no Date Completed property found.")
+    if target_deadline:
+        if schema.has_target_deadline:
+            props["Target Deadline"] = _prop_date(target_deadline)
+        else:
+            warnings.append("target_deadline ignored — no Target Deadline property found.")
+
+    try:
+        page = await app.client.create_page(ds_id, props)
+        result = format_milestone(page, goal_property_name=schema.goal_property_name)
+        if warnings:
+            result["_warning"] = " ".join(warnings)
+        return result
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
+)
+async def update_milestone(
+    milestone_id: Annotated[str, Field(description="Milestone page ID to update.")],
+    name: Annotated[str | None, Field(description="New milestone name.")] = None,
+    goal_id: Annotated[str | None, Field(description="New goal page ID (if supported).")] = None,
+    date_completed: Annotated[
+        str | None, Field(description="New Date Completed (YYYY-MM-DD, if supported).")
+    ] = None,
+    target_deadline: Annotated[
+        str | None, Field(description="New Target Deadline (YYYY-MM-DD, if supported).")
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Update a Milestone. Only provided fields are changed; fields not supported by
+    this workspace's Milestones schema are ignored with a _warning."""
+    app = _ctx(ctx)
+    schema = app.milestones_schema
+    props: dict = {}
+    warnings: list[str] = []
+
+    if name is not None:
+        props["Name"] = _prop_title(name)
+    if goal_id is not None:
+        if schema.goal_property_name:
+            props[schema.goal_property_name] = _prop_relation([goal_id])
+        else:
+            warnings.append("goal_id ignored — no Goal relation on this workspace's Milestones DB.")
+    if date_completed is not None:
+        if schema.has_date_completed:
+            props["Date Completed"] = _prop_date(date_completed)
+        else:
+            warnings.append("date_completed ignored — no Date Completed property found.")
+    if target_deadline is not None:
+        if schema.has_target_deadline:
+            props["Target Deadline"] = _prop_date(target_deadline)
+        else:
+            warnings.append("target_deadline ignored — no Target Deadline property found.")
+
+    if not props:
+        return _error("No properties to update. Provide at least one field.")
+
+    try:
+        page = await app.client.update_page(milestone_id, props)
+        result = format_milestone(page, goal_property_name=schema.goal_property_name)
+        if warnings:
+            result["_warning"] = " ".join(warnings)
+        return result
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Use search_milestones to find valid milestone IDs.")
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+async def search_work_sessions(
+    task_id: Annotated[str | None, Field(description="Filter by linked task page ID.")] = None,
+    active_only: Annotated[
+        bool, Field(description="Only sessions with no End set (currently in progress).")
+    ] = False,
+    limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 50,
+    ctx: Context = None,
+) -> list[dict] | dict:
+    """Search Work Sessions. Use active_only=true to find any session currently
+    running (no End timestamp yet) — useful for 'am I tracking time right now'."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "Work Sessions")
+    if not ds_id:
+        return _error("Work Sessions database not configured. Set UB_WORK_SESSIONS_DS_ID in .env.")
+
+    filters: list[dict] = []
+    if task_id:
+        filters.append({"property": "Tasks", "relation": {"contains": task_id}})
+    if active_only:
+        filters.append({"property": "End", "date": {"is_empty": True}})
+
+    filter_obj: dict | None = None
+    if len(filters) == 1:
+        filter_obj = filters[0]
+    elif len(filters) > 1:
+        filter_obj = {"and": filters}
+
+    try:
+        pages = await app.client.query_all(
+            ds_id, filter=filter_obj, sorts=[{"property": "Start", "direction": "descending"}]
+        )
+        return [format_work_session(p) for p in pages[:limit]]
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def log_work_session(
+    start: Annotated[str, Field(description="Start timestamp, ISO 8601 (e.g. '2026-08-08T14:00:00').")],
+    end: Annotated[
+        str | None,
+        Field(description="End timestamp, ISO 8601. Omit to start an in-progress session."),
+    ] = None,
+    task_id: Annotated[str | None, Field(description="Task page ID to link this session to.")] = None,
+    name: Annotated[str | None, Field(description="Session name. Defaults to 'Work Session'.")] = None,
+    ctx: Context = None,
+) -> dict:
+    """Log a Work Session — with just `start`, begins an in-progress session (no End);
+    with `start` and `end`, logs a completed session. Notion computes Duration."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "Work Sessions")
+    if not ds_id:
+        return _error("Work Sessions database not configured. Set UB_WORK_SESSIONS_DS_ID in .env.")
+
+    props: dict = {
+        "Name": _prop_title(name or "Work Session"),
+        "Start": _prop_date(start),
+    }
+    if end:
+        props["End"] = _prop_date(end)
+    if task_id:
+        props["Tasks"] = _prop_relation([task_id])
+
+    try:
+        page = await app.client.create_page(ds_id, props)
+        return format_work_session(page)
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Check that task_id is valid and timestamps are ISO 8601.")
 
 
 # =========================================================================
