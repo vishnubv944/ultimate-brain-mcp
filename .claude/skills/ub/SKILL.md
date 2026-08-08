@@ -129,9 +129,9 @@ set_page_content(page_id="<idea note id>", mode="append",
 ```
 Use `mode="append"` so existing content and formatting are preserved.
 
-### Journal (read and feedback only - never authored by Claude)
+### Journal (read and feedback only - never authored by Claude, except guided journaling)
 
-The user writes their own journal entries. Claude does **not** create Journal notes. Claude's role is:
+The user writes their own journal entries. Claude does **not** create Journal notes unsolicited. Claude's role is:
 - **Read** - retrieve and review entries when the user wants to discuss them: `search_notes(note_type="Journal", ...)` then `get_note_content(note_id)`.
 - **Add feedback on request** - when the user asks Claude to add its thoughts, append a section to the **bottom** of that entry under the heading **"Claude's Feedback"**:
 ```
@@ -139,6 +139,8 @@ set_page_content(page_id="<journal note id>", mode="append",
   content="\n---\n## Claude's Feedback - <YYYY-MM-DD>\n<feedback>")
 ```
 An explicit request to add feedback is the go-ahead, so you can write it - but show the feedback in chat as you add it. Never edit or overwrite the user's own journal text, and never create a new Journal entry on their behalf.
+
+**Narrow exception - guided journaling.** The user's Hermes nightly close-out cron (`nightly-close-my-day`) asks a few open-ended journaling questions, waits for the user's answers, and creates the Journal note itself (`create_note`, `note_type="Journal"`, name `Journal: YYYY-MM-DD`, tagged **Duty**). This is authorized because the note's content is still the user's own words - Claude/Hermes only supplies the prompting questions as scaffolding, formatted as Q&A, never as third-person narrative or a summary standing in for the user's voice. This exception is scoped to that specific guided flow; it does not license creating Journal entries in any other context without the user's answers driving the content.
 
 ### Meeting (read access only)
 
