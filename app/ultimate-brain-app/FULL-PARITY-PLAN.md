@@ -91,14 +91,19 @@ Each step: build + on-device check + commit.
   List, Description, sub-tasks, page body (markdown read).
   Widened workspace task load window so Done history is reachable
   (+ a Done filter on the Tasks screen).
-- **Step 3 — in progress.** Project: Status/Deadline/Goal + Review Notes
-  editor. Goal: Status/Deadline. Note: Type/Date/Project. Tag: favorite.
-  Still TODO: relation pickers for People/Tags on Project/Goal/Note;
-  Milestone Goal relation + detail screen; Goal Set date; Tag parent/sub.
+- **Step 3 — done.** Project: Status/Deadline/Goal/Review Notes/Tags/People.
+  Goal: Status/Deadline/Goal-Set/Area-Tag. Note: Type/Date/Project/URL/
+  Review-Date/Tags. Tag: favorite/Type/Parent + Sub-tags list. Milestone:
+  new detail screen with Goal relation + Target date.
 - **Step 4 — done** (prior commits): People/Books/Reading Log/Genres/
   Recipes/Meal Planner list+detail+create on the kit.
-- **Step 5 — partial.** Work Sessions history now loads from Notion into
-  the Work Sessions screen. Still TODO: full pagination / load-more for
-  long completed-task history; assignee (people) load.
-- **Step 6 — partial.** Task→Project taps through; more relation nav TODO.
-- **Step 7 — not started.** Offline write queue + sync indicator.
+- **Step 5 — done (bar workspace-user assignee).** Work Sessions history
+  loads from Notion. Tasks 'Done' filter has 'Load older completed tasks'
+  (365-day window). The people-property 'Assignee' still needs /v1/users;
+  the People *relation* on tasks/projects is editable.
+- **Step 6 — done.** Task→Project/Notes, Project→Tasks/Notes/Goal,
+  Goal→Projects, Milestone→Goal, Tag→Projects/Notes/Sub-tags, and
+  Global Search rows all tap through.
+- **Step 7 — done.** remoteWrite queues failed writes and retries with
+  exponential backoff; ScreenScaffold shows a tap-to-retry banner; a
+  successful sync drains the queue.

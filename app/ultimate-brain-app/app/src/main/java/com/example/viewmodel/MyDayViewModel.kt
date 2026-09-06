@@ -1082,6 +1082,13 @@ class MyDayViewModel : ViewModel() {
     patchGoal(id) { it.copy(tagId = tagId, tagArea = name) }
     remoteWrite { it.setGoalTag(id, tagId) }
   }
+  fun toggleNoteTag(id: String, tagId: String) {
+    val cur = _uiState.value.notes.find { it.id == id }?.tagIds ?: emptyList()
+    val next = if (tagId in cur) cur - tagId else cur + tagId
+    val names = next.mapNotNull { t -> _uiState.value.tags.find { it.id == t }?.name }.map { "#$it" }
+    patchNote(id) { it.copy(tagIds = next, tags = names) }
+    remoteWrite { it.setNoteRelation(id, "Tag", next) }
+  }
   fun setNoteUrl(id: String, url: String) {
     patchNote(id) { it.copy(url = url) }
     remoteWrite { it.setNoteUrl(id, url) }

@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -104,6 +105,21 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         )
         if (urlDraft != note.url) {
           androidx.compose.material3.TextButton(onClick = { viewModel.setNoteUrl(note.id, urlDraft.trim()) }) { Text("Save URL") }
+        }
+      }
+      if (uiState.tags.isNotEmpty()) {
+        Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        androidx.compose.foundation.layout.Row(
+          Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+          horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        ) {
+          uiState.tags.forEach { tag ->
+            androidx.compose.material3.FilterChip(
+              selected = tag.id in note.tagIds,
+              onClick = { viewModel.toggleNoteTag(note.id, tag.id) },
+              label = { Text(tag.name) },
+            )
+          }
         }
       }
 

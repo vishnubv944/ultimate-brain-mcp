@@ -37,6 +37,7 @@ data class NoteModel(
   val rawMarkdown: String = "",
   val url: String = "",
   val reviewDateIso: String? = null,
+  val tagIds: List<String> = emptyList(),
 )
 
 // --- Goals ---

@@ -146,6 +146,7 @@ object NotionMappers {
       rawMarkdown = "",
       url = p.prop("URL", "Url")?.url.orEmpty(),
       reviewDateIso = p.prop("Review Date")?.dateStart()?.substringBefore('T'),
+      tagIds = tagIds,
     )
   }
 

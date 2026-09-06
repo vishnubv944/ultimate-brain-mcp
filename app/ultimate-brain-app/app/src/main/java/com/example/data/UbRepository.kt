@@ -304,6 +304,10 @@ class UbRepository(
     val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
     c.call { it.updatePage(id, mapOf("properties" to mapOf("Review Date" to v))) }
   }
+  suspend fun setNoteRelation(id: String, prop: String, ids: List<String>) {
+    val c = client ?: return
+    c.call { it.updatePage(id, mapOf("properties" to mapOf(prop to mapOf("relation" to ids.map { i -> mapOf("id" to i) })))) }
+  }
   suspend fun setNoteProject(id: String, projectId: String?) {
     val c = client ?: return
     val rel = if (projectId == null) emptyList<Any>() else listOf(mapOf("id" to projectId))
