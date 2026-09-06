@@ -262,7 +262,7 @@ class UbRepository(
     val c = client ?: return null
     val props = mapOf<String, Any>(
       "Name" to mapOf("title" to listOf(mapOf("text" to mapOf("content" to name)))),
-      "Status" to mapOf("status" to mapOf("name" to "Not Started")),
+      "Status" to mapOf("status" to mapOf("name" to "Planned")),
     )
     return c.call {
       it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.projectsDsId), "properties" to props))
@@ -452,6 +452,8 @@ class UbRepository(
     projectId: String?,
     priority: Priority?,
     myDay: Boolean,
+    dueIso: String? = null,
+    labels: List<String> = emptyList(),
   ): String? {
     val c = client ?: return null
     val props = buildMap<String, Any> {
@@ -463,6 +465,8 @@ class UbRepository(
         put("Priority", mapOf("status" to mapOf("name" to pn)))
       }
       projectId?.let { put("Project", mapOf("relation" to listOf(mapOf("id" to it)))) }
+      dueIso?.let { put("Due", mapOf("date" to mapOf("start" to it))) }
+      if (labels.isNotEmpty()) put("Labels", mapOf("multi_select" to labels.map { mapOf("name" to it) }))
     }
     val page = c.call {
       it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.tasksDsId), "properties" to props))

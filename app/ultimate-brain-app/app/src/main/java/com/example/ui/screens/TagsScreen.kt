@@ -5,6 +5,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -60,6 +65,15 @@ fun TagsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             leadingDot = tagColor(tag.type),
             onClick = { viewModel.openTagDetail(tag.id) },
             modifier = Modifier.padding(horizontal = TodayPad),
+            trailing = {
+              IconButton(onClick = { viewModel.toggleTagFavorite(tag.id) }) {
+                Icon(
+                  if (tag.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                  contentDescription = "Favorite",
+                  tint = if (tag.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            },
           )
           if (i < list.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
         }

@@ -205,7 +205,7 @@ fun MyDayScreen(
   if (uiState.isQuickAddOpen) {
     QuickAddBottomSheet(
       onDismiss = { viewModel.setQuickAddOpen(false) },
-      onSaveTask = { name, projectId, priority, isMyDay -> viewModel.addNewTask(name, projectId, priority, isMyDay) },
+      onSaveTask = { name, projectId, priority, isMyDay, dueIso -> viewModel.addNewTask(name, projectId, priority, isMyDay, dueIso) },
       projects = uiState.projects,
     )
   }

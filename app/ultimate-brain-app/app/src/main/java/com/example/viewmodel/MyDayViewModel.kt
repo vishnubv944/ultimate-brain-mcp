@@ -1115,7 +1115,13 @@ class MyDayViewModel : ViewModel() {
     }
   }
 
-  fun addNewTask(name: String, projectId: String?, priority: Priority?, isMyDay: Boolean) {
+  fun addNewTask(
+    name: String,
+    projectId: String?,
+    priority: Priority?,
+    isMyDay: Boolean,
+    dueIso: String? = null,
+  ) {
     if (name.isBlank()) return
     val projectName = projectId?.let { id -> _uiState.value.projects.find { it.id == id }?.name }
     val newTask = Task(
@@ -1123,10 +1129,11 @@ class MyDayViewModel : ViewModel() {
       name = name.trim(),
       status = TaskStatus.TODO,
       priority = priority,
-      dueDisplay = "Today",
+      due = dueIso,
+      dueDisplay = com.example.data.DateUtils.displayLabel(dueIso).ifBlank { "Today" },
       isMyDay = isMyDay,
       projectName = projectName,
-      labels = if (projectName != null) listOf("Planned") else listOf("Quick")
+      labels = emptyList(),
     )
     _uiState.update { state ->
       state.copy(
@@ -1138,7 +1145,7 @@ class MyDayViewModel : ViewModel() {
     if (repo.isRemote) {
       viewModelScope.launch {
         try {
-          val realId = repo.createTask(name.trim(), projectId, priority, isMyDay)
+          val realId = repo.createTask(name.trim(), projectId, priority, isMyDay, dueIso)
           if (realId != null) {
             // Swap the optimistic row's temp id for the real Notion page id.
             _uiState.update { state ->
@@ -1258,7 +1265,7 @@ class MyDayViewModel : ViewModel() {
   /** Create a project and jump straight into its editor. */
   fun createNewProject() {
     val tempId = "p-new-${System.currentTimeMillis()}"
-    val draft = ProjectModel(id = tempId, name = "New project", status = "Not Started")
+    val draft = ProjectModel(id = tempId, name = "New project", status = "Planned")
     _uiState.update {
       it.copy(projects = listOf(draft) + it.projects, selectedProjectId = tempId, currentScreen = AppScreen.EDIT_PROJECT)
     }
@@ -1387,6 +1394,14 @@ class MyDayViewModel : ViewModel() {
     }
     val fav = _uiState.value.notes.firstOrNull { it.id == noteId }?.isFavorite == true
     remoteWrite { it.setNoteFavorite(noteId, fav) }
+  }
+
+  fun toggleTagFavorite(tagId: String) {
+    _uiState.update { s ->
+      s.copy(tags = s.tags.map { if (it.id == tagId) it.copy(isFavorite = !it.isFavorite) else it })
+    }
+    val fav = _uiState.value.tags.firstOrNull { it.id == tagId }?.isFavorite == true
+    remoteWrite { it.setPageCheckbox(tagId, "Favorite", fav) }
   }
 
   fun saveNote(updatedNote: NoteModel) {

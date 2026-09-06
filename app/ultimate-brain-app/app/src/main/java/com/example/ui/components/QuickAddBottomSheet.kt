@@ -74,7 +74,7 @@ import com.example.ui.theme.warning
 @Composable
 fun QuickAddBottomSheet(
   onDismiss: () -> Unit,
-  onSaveTask: (name: String, projectId: String?, priority: Priority?, isMyDay: Boolean) -> Unit,
+  onSaveTask: (name: String, projectId: String?, priority: Priority?, isMyDay: Boolean, dueIso: String?) -> Unit,
   projects: List<ProjectModel> = emptyList()
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -236,7 +236,13 @@ fun QuickAddBottomSheet(
 
       Button(
         onClick = {
-          if (taskName.isNotBlank()) onSaveTask(taskName, selectedProject?.id, selectedPriority, isMyDay)
+          val dueIso = when (dueDisplay) {
+            "Today" -> java.time.LocalDate.now().toString()
+            "Tomorrow" -> java.time.LocalDate.now().plusDays(1).toString()
+            "+1 week" -> java.time.LocalDate.now().plusWeeks(1).toString()
+            else -> null
+          }
+          if (taskName.isNotBlank()) onSaveTask(taskName, selectedProject?.id, selectedPriority, isMyDay, dueIso)
         },
         enabled = taskName.isNotBlank(),
         colors = ButtonDefaults.buttonColors(

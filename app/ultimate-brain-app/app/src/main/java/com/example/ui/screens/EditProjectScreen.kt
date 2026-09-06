@@ -134,7 +134,7 @@ fun EditProjectScreen(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          listOf("Not Started", "Doing", "Ongoing", "Done").forEach { st ->
+          uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")).forEach { st ->
             val isSelected = status == st
             Surface(
               shape = RoundedCornerShape(8.dp),
