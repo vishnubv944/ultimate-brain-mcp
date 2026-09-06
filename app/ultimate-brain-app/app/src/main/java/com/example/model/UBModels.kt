@@ -32,7 +32,9 @@ data class NoteModel(
   val tags: List<String> = listOf("#Work (Area)"),
   val isFavorite: Boolean = false,
   val excerpt: String = "",
-  val rawMarkdown: String = ""
+  val rawMarkdown: String = "",
+  val url: String = "",
+  val reviewDateIso: String? = null,
 )
 
 // --- Goals ---

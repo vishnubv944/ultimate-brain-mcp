@@ -140,6 +140,8 @@ object NotionMappers {
       isFavorite = p.prop("Favorite")?.isChecked() == true,
       excerpt = "",
       rawMarkdown = "",
+      url = p.prop("URL", "Url")?.url.orEmpty(),
+      reviewDateIso = p.prop("Review Date")?.dateStart()?.substringBefore('T'),
     )
   }
 

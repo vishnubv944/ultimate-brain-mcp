@@ -1043,6 +1043,14 @@ class MyDayViewModel : ViewModel() {
     patchGoal(id) { it.copy(tagId = tagId, tagArea = name) }
     remoteWrite { it.setGoalTag(id, tagId) }
   }
+  fun setNoteUrl(id: String, url: String) {
+    patchNote(id) { it.copy(url = url) }
+    remoteWrite { it.setNoteUrl(id, url) }
+  }
+  fun setNoteReviewDate(id: String, iso: String?) {
+    patchNote(id) { it.copy(reviewDateIso = iso) }
+    remoteWrite { it.setNoteReviewDate(id, iso) }
+  }
   fun setNoteType(id: String, type: String) {
     patchNote(id) { it.copy(type = type) }
     remoteWrite { it.updateNoteMeta(id, _uiState.value.notes.first { it.id == id }.title, type) }

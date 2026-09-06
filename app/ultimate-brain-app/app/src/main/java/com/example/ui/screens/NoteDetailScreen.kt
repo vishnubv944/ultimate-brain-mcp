@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -85,11 +87,25 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         allowClear = false,
       )
       com.example.ui.components.DateFieldRow("Date", note.dateIso, { viewModel.setNoteDate(note.id, it) })
+      com.example.ui.components.DateFieldRow("Review date", note.reviewDateIso, { viewModel.setNoteReviewDate(note.id, it) })
       com.example.ui.components.OptionRow(
         "Project", note.projectName,
         uiState.projects.map { it.name },
         { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
       )
+      run {
+        var urlDraft by androidx.compose.runtime.remember(note.id, note.url) { androidx.compose.runtime.mutableStateOf(note.url) }
+        androidx.compose.material3.OutlinedTextField(
+          value = urlDraft,
+          onValueChange = { urlDraft = it },
+          label = { Text("URL") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        )
+        if (urlDraft != note.url) {
+          androidx.compose.material3.TextButton(onClick = { viewModel.setNoteUrl(note.id, urlDraft.trim()) }) { Text("Save URL") }
+        }
+      }
 
       Spacer(Modifier.height(16.dp))
 
