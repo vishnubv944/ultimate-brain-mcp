@@ -19,6 +19,15 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
+data class LibraryData(
+  val people: List<com.example.model.PersonModel> = emptyList(),
+  val books: List<com.example.model.BookModel> = emptyList(),
+  val readingLog: List<com.example.model.ReadingLogModel> = emptyList(),
+  val genres: List<com.example.model.GenreModel> = emptyList(),
+  val recipes: List<com.example.model.RecipeModel> = emptyList(),
+  val mealPlan: List<com.example.model.MealPlanModel> = emptyList(),
+)
+
 /** Everything the app pulls from Notion in one shot. */
 data class WorkspaceData(
   val tasks: List<Task>,
@@ -99,6 +108,57 @@ class UbRepository(
     val milestones = milestonePages.filter(alive).map { NotionMappers.toMilestone(it, goalNames) }
 
     WorkspaceData(tasks, projects, notes, goals, tags, milestones)
+  }
+
+  suspend fun loadLibrary(): LibraryData = withContext(Dispatchers.IO) {
+    val c = client ?: return@withContext LibraryData()
+    suspend fun q(id: String, max: Int = 4) =
+      if (id.isBlank()) emptyList() else try { c.queryAll(id, maxPages = max) } catch (_: Exception) { emptyList() }
+    val (peoplePages, bookPages, logPages, genrePages, recipePages, mealPages) = coroutineScope {
+      val a = async { q(NotionConfig.peopleDsId) }
+      val b = async { q(NotionConfig.booksDsId) }
+      val d = async { q(NotionConfig.readingLogDsId, 3) }
+      val e = async { q(NotionConfig.genresDsId) }
+      val f = async { q(NotionConfig.recipesDsId) }
+      val g = async { q(NotionConfig.mealPlannerDsId, 3) }
+      SixLists(a.await(), b.await(), d.await(), e.await(), f.await(), g.await())
+    }
+    val alive = { p: NotionPage -> !p.archived && !p.inTrash }
+    val bookTitles = bookPages.filter(alive).associate { it.id to (it.properties.prop("Title", "Name")?.plainTitle().orEmpty()) }
+    val recipeNames = recipePages.filter(alive).associate { it.id to (it.properties.prop("Name")?.plainTitle().orEmpty()) }
+    LibraryData(
+      people = peoplePages.filter(alive).map { NotionMappers.toPerson(it) },
+      books = bookPages.filter(alive).map { NotionMappers.toBook(it) },
+      readingLog = logPages.filter(alive).map { NotionMappers.toReadingLog(it, bookTitles) },
+      genres = genrePages.filter(alive).map { NotionMappers.toGenre(it) },
+      recipes = recipePages.filter(alive).map { NotionMappers.toRecipe(it) },
+      mealPlan = mealPages.filter(alive).map { NotionMappers.toMealPlan(it, recipeNames) },
+    )
+  }
+
+  /** Set a select/status/checkbox/date on any page — used by the library editors. */
+  suspend fun setPageStatus(pageId: String, prop: String, name: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("status" to (name?.let { mapOf("name" to it) }))
+    c.call { it.updatePage(pageId, mapOf("properties" to mapOf(prop to v))) }
+  }
+  suspend fun setPageSelect(pageId: String, prop: String, name: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("select" to (name?.let { mapOf("name" to it) }))
+    c.call { it.updatePage(pageId, mapOf("properties" to mapOf(prop to v))) }
+  }
+  suspend fun setPageCheckbox(pageId: String, prop: String, value: Boolean) {
+    val c = client ?: return
+    c.call { it.updatePage(pageId, mapOf("properties" to mapOf(prop to mapOf("checkbox" to value)))) }
+  }
+  suspend fun createInDb(dsId: String, titleProp: String, title: String, extra: Map<String, Any> = emptyMap()): String? {
+    val c = client ?: return null
+    if (dsId.isBlank()) return null
+    val props = buildMap<String, Any> {
+      put(titleProp, mapOf("title" to listOf(mapOf("text" to mapOf("content" to title)))))
+      putAll(extra)
+    }
+    return c.call { it.createPage(mapOf("parent" to mapOf("data_source_id" to dsId), "properties" to props)) }.id
   }
 
   suspend fun setMilestoneCompleted(milestoneId: String, completed: Boolean) {

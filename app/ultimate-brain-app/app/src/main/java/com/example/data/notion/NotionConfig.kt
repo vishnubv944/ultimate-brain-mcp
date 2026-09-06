@@ -24,6 +24,12 @@ object NotionConfig {
   val goalsDsId: String = buildConfigOrEmpty("UB_GOALS_DS_ID")
   val milestonesDsId: String = buildConfigOrEmpty("UB_MILESTONES_DS_ID")
   val workSessionsDsId: String = buildConfigOrEmpty("UB_WORK_SESSIONS_DS_ID")
+  val peopleDsId: String = buildConfigOrEmpty("UB_PEOPLE_DS_ID")
+  val booksDsId: String = buildConfigOrEmpty("UB_BOOKS_DS_ID")
+  val readingLogDsId: String = buildConfigOrEmpty("UB_READING_LOG_DS_ID")
+  val genresDsId: String = buildConfigOrEmpty("UB_GENRES_DS_ID")
+  val recipesDsId: String = buildConfigOrEmpty("UB_RECIPES_DS_ID")
+  val mealPlannerDsId: String = buildConfigOrEmpty("UB_MEAL_PLANNER_DS_ID")
 
   /** When false, the app stays on bundled [com.example.data.DummyData]. */
   val isConfigured: Boolean

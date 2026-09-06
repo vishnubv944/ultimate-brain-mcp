@@ -173,6 +173,15 @@ class MainActivity : ComponentActivity() {
           composable("more_hub") {
             MoreHubScreen(viewModel = viewModel)
           }
+          composable("people") { com.example.ui.screens.PeopleScreen(viewModel) }
+          composable("person_detail") { com.example.ui.screens.PersonDetailScreen(viewModel) }
+          composable("books") { com.example.ui.screens.BooksScreen(viewModel) }
+          composable("book_detail") { com.example.ui.screens.BookDetailScreen(viewModel) }
+          composable("reading_log") { com.example.ui.screens.ReadingLogScreen(viewModel) }
+          composable("genres") { com.example.ui.screens.GenresScreen(viewModel) }
+          composable("recipes") { com.example.ui.screens.RecipesScreen(viewModel) }
+          composable("recipe_detail") { com.example.ui.screens.RecipeDetailScreen(viewModel) }
+          composable("meal_planner") { com.example.ui.screens.MealPlannerScreen(viewModel) }
         }
       }
     }
@@ -198,4 +207,13 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.SETTINGS -> "settings"
   AppScreen.GLOBAL_SEARCH -> "global_search"
   AppScreen.MORE_HUB -> "more_hub"
+  AppScreen.PEOPLE -> "people"
+  AppScreen.PERSON_DETAIL -> "person_detail"
+  AppScreen.BOOKS -> "books"
+  AppScreen.BOOK_DETAIL -> "book_detail"
+  AppScreen.READING_LOG -> "reading_log"
+  AppScreen.GENRES -> "genres"
+  AppScreen.RECIPES -> "recipes"
+  AppScreen.RECIPE_DETAIL -> "recipe_detail"
+  AppScreen.MEAL_PLANNER -> "meal_planner"
 }

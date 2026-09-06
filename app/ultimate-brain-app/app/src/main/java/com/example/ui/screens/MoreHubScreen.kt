@@ -16,12 +16,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Timelapse
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -49,8 +55,10 @@ import com.example.R
 import com.example.ui.components.BottomNavBar
 import com.example.ui.components.BottomNavDestination
 import com.example.ui.theme.entityGoals
+import com.example.ui.theme.entityNotes
 import com.example.ui.theme.entityProjects
 import com.example.ui.theme.entityTagArea
+import com.example.ui.theme.entityTagEntity
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.MyDayViewModel
 
@@ -182,6 +190,33 @@ fun MoreHubScreen(
               onClick = { viewModel.navigateTo(AppScreen.WORK_SESSIONS) },
               testTag = "hub_work_sessions_item"
             )
+          }
+        }
+      }
+
+      // Library
+      item {
+        Text("Library", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+      }
+      item {
+        Surface(
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surfaceContainerLow,
+          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column {
+            MoreHubItemRow(Icons.Default.Person, MaterialTheme.colorScheme.entityTagEntity, "People", "Contacts & CRM", uiState.people.size.takeIf { it > 0 }?.let { "$it" }, { viewModel.navigateTo(AppScreen.PEOPLE) }, "hub_people")
+            com.example.ui.components.ThinDivider()
+            MoreHubItemRow(Icons.Default.MenuBook, MaterialTheme.colorScheme.entityNotes, "Books", "Reading list & library", uiState.books.size.takeIf { it > 0 }?.let { "$it" }, { viewModel.navigateTo(AppScreen.BOOKS) }, "hub_books")
+            com.example.ui.components.ThinDivider()
+            MoreHubItemRow(Icons.Default.Timeline, MaterialTheme.colorScheme.onSurfaceVariant, "Reading log", "Session-by-session progress", null, { viewModel.navigateTo(AppScreen.READING_LOG) }, "hub_readinglog")
+            com.example.ui.components.ThinDivider()
+            MoreHubItemRow(Icons.Default.Restaurant, MaterialTheme.colorScheme.entityGoals, "Recipes", "Your recipe box", uiState.recipes.size.takeIf { it > 0 }?.let { "$it" }, { viewModel.navigateTo(AppScreen.RECIPES) }, "hub_recipes")
+            com.example.ui.components.ThinDivider()
+            MoreHubItemRow(Icons.Default.CalendarMonth, MaterialTheme.colorScheme.primary, "Meal planner", "This week's meals", null, { viewModel.navigateTo(AppScreen.MEAL_PLANNER) }, "hub_meals")
+            com.example.ui.components.ThinDivider()
+            MoreHubItemRow(Icons.Default.LocalOffer, MaterialTheme.colorScheme.onSurfaceVariant, "Genres", "Book genres", null, { viewModel.navigateTo(AppScreen.GENRES) }, "hub_genres")
           }
         }
       }

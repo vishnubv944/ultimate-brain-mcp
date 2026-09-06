@@ -52,7 +52,13 @@ enum class AppScreen {
   WORK_SESSIONS,
   SETTINGS,
   GLOBAL_SEARCH,
-  MORE_HUB
+  MORE_HUB,
+  PEOPLE, PERSON_DETAIL,
+  BOOKS, BOOK_DETAIL,
+  READING_LOG,
+  GENRES,
+  RECIPES, RECIPE_DETAIL,
+  MEAL_PLANNER,
 }
 
 /**
@@ -201,6 +207,18 @@ data class MyDayUiState(
 
   // Live Notion option lists, keyed "<db>.<Property>". Fetched on sync.
   val schemaOptions: Map<String, List<String>> = emptyMap(),
+
+  // Library / secondary databases.
+  val people: List<com.example.model.PersonModel> = emptyList(),
+  val books: List<com.example.model.BookModel> = emptyList(),
+  val readingLog: List<com.example.model.ReadingLogModel> = emptyList(),
+  val genres: List<com.example.model.GenreModel> = emptyList(),
+  val recipes: List<com.example.model.RecipeModel> = emptyList(),
+  val mealPlan: List<com.example.model.MealPlanModel> = emptyList(),
+  val libraryLoaded: Boolean = false,
+  val selectedPersonId: String? = null,
+  val selectedBookId: String? = null,
+  val selectedRecipeId: String? = null,
 
   // Projects State
   val projects: List<ProjectModel> = DummyData.projectsList,
@@ -488,8 +506,62 @@ class MyDayViewModel : ViewModel() {
 
   init {
     startTimerLoop()
-    if (repo.isRemote) refreshFromNotion()
+    if (repo.isRemote) {
+      refreshFromNotion()
+      loadLibrary()
+    }
   }
+
+  fun loadLibrary() {
+    if (!repo.isRemote) return
+    viewModelScope.launch {
+      try {
+        val lib = repo.loadLibrary()
+        _uiState.update {
+          it.copy(
+            people = lib.people, books = lib.books, readingLog = lib.readingLog,
+            genres = lib.genres, recipes = lib.recipes, mealPlan = lib.mealPlan,
+            libraryLoaded = true,
+          )
+        }
+      } catch (e: Exception) {
+        _uiState.update { it.copy(syncError = e.message ?: "Library load failed") }
+      }
+    }
+  }
+
+  // --- Library nav + edits ---
+  fun openPerson(id: String) { _uiState.update { it.copy(selectedPersonId = id) }; emitNav(AppScreen.PERSON_DETAIL) }
+  fun openBook(id: String) { _uiState.update { it.copy(selectedBookId = id) }; emitNav(AppScreen.BOOK_DETAIL); loadDetailBody(id) }
+  fun openRecipe(id: String) { _uiState.update { it.copy(selectedRecipeId = id) }; emitNav(AppScreen.RECIPE_DETAIL); loadDetailBody(id) }
+
+  fun setBookStatus(id: String, status: String) {
+    _uiState.update { s -> s.copy(books = s.books.map { if (it.id == id) it.copy(status = status) else it }) }
+    remoteWrite { it.setPageStatus(id, "Status", status) }
+  }
+  fun toggleRecipeFavorite(id: String) {
+    val fav = !(_uiState.value.recipes.firstOrNull { it.id == id }?.favorite ?: false)
+    _uiState.update { s -> s.copy(recipes = s.recipes.map { if (it.id == id) it.copy(favorite = fav) else it }) }
+    remoteWrite { it.setPageCheckbox(id, "Favorite", fav) }
+  }
+  fun createPerson(name: String) = createLib(com.example.data.notion.NotionConfig.peopleDsId, "Full Name", name) { loadLibrary() }
+  fun createBook(title: String) = createLib(com.example.data.notion.NotionConfig.booksDsId, "Title", title) { loadLibrary() }
+  fun createRecipe(name: String) = createLib(com.example.data.notion.NotionConfig.recipesDsId, "Name", name) { loadLibrary() }
+  fun createReadingLog(name: String) = createLib(com.example.data.notion.NotionConfig.readingLogDsId, "Name", name) { loadLibrary() }
+  fun createGenre(name: String) = createLib(com.example.data.notion.NotionConfig.genresDsId, "Name", name) { loadLibrary() }
+  fun createMealPlan(name: String) = createLib(com.example.data.notion.NotionConfig.mealPlannerDsId, "Name", name) { loadLibrary() }
+
+  private fun createLib(dsId: String, titleProp: String, title: String, after: () -> Unit) {
+    if (!repo.isRemote || title.isBlank()) return
+    viewModelScope.launch {
+      try { repo.createInDb(dsId, titleProp, title); after() }
+      catch (e: Exception) { _uiState.update { it.copy(syncError = e.message ?: "Create failed") } }
+    }
+  }
+
+  val selectedPerson get() = uiState.value.people.firstOrNull { it.id == uiState.value.selectedPersonId }
+  val selectedBook get() = uiState.value.books.firstOrNull { it.id == uiState.value.selectedBookId }
+  val selectedRecipe get() = uiState.value.recipes.firstOrNull { it.id == uiState.value.selectedRecipeId }
 
   /** Pull the full workspace from Notion and replace the local state. */
   fun refreshFromNotion() {

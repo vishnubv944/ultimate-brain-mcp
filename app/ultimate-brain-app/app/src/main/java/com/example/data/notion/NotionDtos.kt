@@ -30,6 +30,8 @@ data class NotionProperty(
   val checkbox: Boolean? = null,
   val number: Double? = null,
   val url: String? = null,
+  val email: String? = null,
+  @Json(name = "phone_number") val phoneNumber: String? = null,
   val relation: List<NotionRef>? = null,
   @Json(name = "has_more") val hasMore: Boolean? = null,
   val formula: NotionFormula? = null,

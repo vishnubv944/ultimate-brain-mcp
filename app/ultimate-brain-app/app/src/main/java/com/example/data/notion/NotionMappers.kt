@@ -212,6 +212,96 @@ object NotionMappers {
     )
   }
 
+  fun toPerson(page: NotionPage): com.example.model.PersonModel {
+    val p = page.properties
+    fun rt(k: String) = p.prop(k)?.plainTitle().orEmpty()
+    return com.example.model.PersonModel(
+      id = page.id,
+      name = p.prop("Full Name", "Name")?.plainTitle().orEmpty(),
+      company = rt("Company"),
+      title = rt("Title"),
+      email = p.prop("Email")?.email.orEmpty(),
+      phone = p.prop("Phone")?.phoneNumber.orEmpty(),
+      relationship = p.prop("Relationship")?.multiNames().orEmpty(),
+      pipelineStatus = p.prop("Pipeline Status")?.selectName(),
+      birthday = p.prop("Birthday")?.dateStart(),
+      lastCheckIn = p.prop("Last Check-In")?.dateStart(),
+      linkedIn = p.prop("LinkedIn")?.url.orEmpty(),
+      twitter = p.prop("Twitter/X")?.url.orEmpty(),
+      website = p.prop("Website")?.url.orEmpty(),
+      location = rt("Location"),
+    )
+  }
+
+  fun toBook(page: NotionPage): com.example.model.BookModel {
+    val p = page.properties
+    return com.example.model.BookModel(
+      id = page.id,
+      title = p.prop("Title", "Name")?.plainTitle().orEmpty(),
+      author = p.prop("Author")?.plainTitle().orEmpty(),
+      status = p.prop("Status")?.selectName() ?: "Want to Read",
+      rating = p.prop("Rating")?.selectName(),
+      pages = p.prop("Pages")?.number?.toInt(),
+      publishYear = p.prop("Publish Year")?.number?.toInt(),
+      dateStarted = p.prop("Date Started")?.dateStart(),
+      dateFinished = p.prop("Date Finished")?.dateStart(),
+      ownedFormats = p.prop("Owned Formats")?.multiNames().orEmpty(),
+      shelf = p.prop("Shelf")?.multiNames().orEmpty(),
+      readNext = p.prop("Read Next")?.isChecked() == true,
+      description = p.prop("Description")?.plainTitle().orEmpty(),
+      genreIds = p.prop("Genres").rel(),
+    )
+  }
+
+  fun toReadingLog(page: NotionPage, bookTitles: Map<String, String>): com.example.model.ReadingLogModel {
+    val p = page.properties
+    val bookId = p.prop("Book").rel().firstOrNull()
+    return com.example.model.ReadingLogModel(
+      id = page.id,
+      name = p.prop("Name")?.plainTitle().orEmpty(),
+      bookId = bookId,
+      bookTitle = bookId?.let { bookTitles[it] },
+      logDate = p.prop("Log Date")?.dateStart(),
+      startPage = p.prop("Start Page")?.number?.toInt(),
+      endPage = p.prop("End Page")?.number?.toInt(),
+    )
+  }
+
+  fun toGenre(page: NotionPage): com.example.model.GenreModel = com.example.model.GenreModel(
+    id = page.id,
+    name = page.properties.prop("Name")?.plainTitle().orEmpty(),
+    bookCount = page.properties.prop("Books").rel().size,
+  )
+
+  fun toRecipe(page: NotionPage): com.example.model.RecipeModel {
+    val p = page.properties
+    return com.example.model.RecipeModel(
+      id = page.id,
+      name = p.prop("Name")?.plainTitle().orEmpty(),
+      chef = p.prop("Chef Name")?.plainTitle().orEmpty(),
+      prepTime = p.prop("Prep Time")?.number?.toInt(),
+      cookTime = p.prop("Cook Time")?.number?.toInt(),
+      servings = p.prop("Servings")?.number?.toInt(),
+      mealTimes = p.prop("Meal Time")?.multiNames().orEmpty(),
+      favorite = p.prop("Favorite")?.isChecked() == true,
+      url = p.prop("URL")?.url.orEmpty(),
+    )
+  }
+
+  fun toMealPlan(page: NotionPage, recipeNames: Map<String, String>): com.example.model.MealPlanModel {
+    val p = page.properties
+    val rids = p.prop("Recipes").rel()
+    return com.example.model.MealPlanModel(
+      id = page.id,
+      name = p.prop("Name")?.plainTitle().orEmpty(),
+      date = p.prop("Date")?.dateStart(),
+      meal = p.prop("Meal")?.selectName(),
+      recipeIds = rids,
+      recipeNames = rids.mapNotNull { recipeNames[it] },
+      favorite = p.prop("Favorite")?.isChecked() == true,
+    )
+  }
+
   // --- helpers ---
 
   private fun NotionProperty?.rel(): List<String> = this?.relationIds().orEmpty()
