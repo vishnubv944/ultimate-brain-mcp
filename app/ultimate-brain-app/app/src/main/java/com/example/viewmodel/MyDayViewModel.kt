@@ -268,6 +268,7 @@ data class MyDayUiState(
   val pendingWriteCount: Int = 0,
   val loadingOlder: Boolean = false,
   val olderCompletedLoaded: Boolean = false,
+  val workspaceUsers: List<Pair<String, String>> = emptyList(),
 ) {
   val selectedTask: Task?
     get() = tasks.find { it.id == selectedTaskId } ?: tasks.firstOrNull()
@@ -602,6 +603,10 @@ class MyDayViewModel : ViewModel() {
       launch {
         val opts = try { repo.loadSchemaOptions() } catch (_: Exception) { emptyMap() }
         if (opts.isNotEmpty()) _uiState.update { it.copy(schemaOptions = opts) }
+      }
+      launch {
+        val users = try { repo.loadUsers() } catch (_: Exception) { emptyList() }
+        if (users.isNotEmpty()) _uiState.update { it.copy(workspaceUsers = users) }
       }
       try {
         val w = repo.loadWorkspace()
@@ -1009,6 +1014,14 @@ class MyDayViewModel : ViewModel() {
   fun setTaskShoppingList(taskId: String, value: Boolean) {
     patchTask(taskId) { it.copy(shoppingList = value) }
     remoteWrite { it.setTaskCheckbox(taskId, "Shopping List", value) }
+  }
+
+  fun toggleTaskAssignee(taskId: String, userId: String, userName: String) {
+    val cur = _uiState.value.tasks.find { it.id == taskId }?.assigneeIds ?: emptyList()
+    val next = if (userId in cur) cur - userId else cur + userId
+    val names = next.mapNotNull { u -> _uiState.value.workspaceUsers.firstOrNull { it.first == u }?.second }
+    patchTask(taskId) { it.copy(assigneeIds = next, assigneeNames = names) }
+    remoteWrite { it.setTaskPeopleProp(taskId, "Assignee", next) }
   }
 
   fun toggleTaskPerson(taskId: String, personId: String) {

@@ -57,6 +57,8 @@ data class Task(
   val shoppingList: Boolean = false,
   val personIds: List<String> = emptyList(),
   val noteIds: List<String> = emptyList(),
+  val assigneeIds: List<String> = emptyList(),
+  val assigneeNames: List<String> = emptyList(),
 )
 
 data class Project(

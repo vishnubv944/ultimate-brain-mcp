@@ -213,6 +213,18 @@ fun TaskDetailScreen(
         }
       }
 
+      if (uiState.workspaceUsers.isNotEmpty()) {
+        Text("Assignee", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          uiState.workspaceUsers.forEach { (uid, uname) ->
+            FilterChip(
+              selected = uid in task.assigneeIds,
+              onClick = { viewModel.toggleTaskAssignee(task.id, uid, uname) },
+              label = { Text(uname) },
+            )
+          }
+        }
+      }
       if (uiState.people.isNotEmpty()) {
         Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

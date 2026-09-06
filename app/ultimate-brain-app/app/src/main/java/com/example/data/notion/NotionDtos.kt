@@ -107,6 +107,20 @@ data class QueryResponse(
   @Json(name = "next_cursor") val nextCursor: String? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class NotionUser(
+  val id: String = "",
+  val name: String? = null,
+  val type: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class UsersResponse(
+  val results: List<NotionUser> = emptyList(),
+  @Json(name = "has_more") val hasMore: Boolean = false,
+  @Json(name = "next_cursor") val nextCursor: String? = null,
+)
+
 // --- convenience accessors ---------------------------------------------------
 
 fun NotionProperty.plainTitle(): String =

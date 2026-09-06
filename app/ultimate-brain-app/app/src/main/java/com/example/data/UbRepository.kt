@@ -368,6 +368,22 @@ class UbRepository(
     out
   }
 
+  /** Workspace members (id -> display name) for people-property pickers. */
+  suspend fun loadUsers(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+    val c = client ?: return@withContext emptyList()
+    val out = mutableListOf<Pair<String, String>>()
+    var cursor: String? = null
+    try {
+      do {
+        val resp = c.call { it.listUsers(cursor, 100) }
+        resp.results.filter { it.type == "person" || it.type == null }
+          .forEach { u -> if (!u.name.isNullOrBlank()) out.add(u.id to u.name) }
+        cursor = if (resp.hasMore) resp.nextCursor else null
+      } while (cursor != null)
+    } catch (_: Exception) { }
+    out
+  }
+
   /** Page body as Markdown, or null (unconfigured, empty, or unsupported). */
   suspend fun getPageBody(pageId: String): String? {
     val c = client ?: return null
@@ -464,6 +480,16 @@ class UbRepository(
     c.call {
       it.updatePage(taskId, mapOf("properties" to mapOf(
         prop to mapOf("relation" to ids.map { i -> mapOf("id" to i) }),
+      )))
+    }
+  }
+
+  /** Set a people property (list of workspace-user ids) on a task. */
+  suspend fun setTaskPeopleProp(taskId: String, prop: String, userIds: List<String>) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(taskId, mapOf("properties" to mapOf(
+        prop to mapOf("people" to userIds.map { i -> mapOf("id" to i) }),
       )))
     }
   }

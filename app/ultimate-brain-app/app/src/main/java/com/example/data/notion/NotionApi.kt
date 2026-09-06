@@ -6,6 +6,7 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Notion REST surface (API version 2025-09-03). Mirrors the subset of
@@ -33,6 +34,12 @@ interface NotionApi {
     @Path("pageId") pageId: String,
     @Body body: Map<String, @JvmSuppressWildcards Any>,
   ): NotionPage
+
+  @GET("users")
+  suspend fun listUsers(
+    @Query("start_cursor") startCursor: String? = null,
+    @Query("page_size") pageSize: Int = 100,
+  ): UsersResponse
 
   // Page body as Markdown — needs the newer API version, pinned per-call.
   @GET("pages/{pageId}/markdown")
