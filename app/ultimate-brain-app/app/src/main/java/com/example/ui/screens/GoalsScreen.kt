@@ -39,7 +39,7 @@ import com.example.viewmodel.MyDayViewModel
 private val GOAL_FILTERS = listOf(
   GoalFilter.ACTIVE to "Active",
   GoalFilter.ACHIEVED to "Achieved",
-  GoalFilter.DROPPED to "Dropped",
+  GoalFilter.DROPPED to "Archived",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,9 +108,9 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
 }
 
 private fun goalMatchesFilter(g: GoalModel, f: GoalFilter) = when (f) {
-  GoalFilter.ACTIVE -> g.status == "Active"
-  GoalFilter.ACHIEVED -> g.status == "Achieved"
-  GoalFilter.DROPPED -> g.status == "Dropped"
+  GoalFilter.ACTIVE -> !g.isArchived && (g.status == "Active" || g.status == "Dream")
+  GoalFilter.ACHIEVED -> !g.isArchived && g.status == "Achieved"
+  GoalFilter.DROPPED -> g.isArchived
 }
 
 private fun goalMeta(g: GoalModel): String {

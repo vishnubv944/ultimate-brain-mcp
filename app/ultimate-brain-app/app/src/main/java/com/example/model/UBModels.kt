@@ -57,7 +57,8 @@ data class GoalProjectSummary(
 data class GoalModel(
   val id: String,
   val name: String,
-  val status: String = "Active", // Active, Achieved, Dropped
+  val status: String = "Active", // Dream, Active, Achieved
+  val isArchived: Boolean = false,
   val deadline: String = "Dec 31, 2026",
   val daysRemaining: Int = 116,
   val tagArea: String = "Work (Area)",

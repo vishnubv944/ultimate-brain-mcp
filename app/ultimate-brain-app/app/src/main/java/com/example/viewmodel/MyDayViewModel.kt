@@ -199,6 +199,9 @@ data class MyDayUiState(
   val detailBodyLoading: Boolean = false,
   val detailBodyForId: String? = null,
 
+  // Live Notion option lists, keyed "<db>.<Property>". Fetched on sync.
+  val schemaOptions: Map<String, List<String>> = emptyMap(),
+
   // Projects State
   val projects: List<ProjectModel> = DummyData.projectsList,
   val selectedProjectId: String? = null,
@@ -300,9 +303,9 @@ data class MyDayUiState(
 
   val filteredGoals: List<GoalModel>
     get() = when (selectedGoalFilter) {
-      GoalFilter.ACTIVE -> goals.filter { it.status == "Active" }
-      GoalFilter.ACHIEVED -> goals.filter { it.status == "Achieved" }
-      GoalFilter.DROPPED -> goals.filter { it.status == "Dropped" }
+      GoalFilter.ACTIVE -> goals.filter { !it.isArchived && (it.status == "Active" || it.status == "Dream") }
+      GoalFilter.ACHIEVED -> goals.filter { !it.isArchived && it.status == "Achieved" }
+      GoalFilter.DROPPED -> goals.filter { it.isArchived }
     }
 
   val filteredMilestones: List<MilestoneModel>
@@ -438,6 +441,10 @@ data class MyDayUiState(
   val openTodayTasks: List<Task>
     get() = tasks.filter { it.isMyDay && !it.isDone }
 
+  /** Live Notion options for a "<db>.<Property>" key, or [fallback]. */
+  fun optionsFor(key: String, fallback: List<String>): List<String> =
+    schemaOptions[key]?.takeIf { it.isNotEmpty() } ?: fallback
+
   // --- Tasks screen -----------------------------------------------------
 
   fun tasksFilterMatches(task: Task, filter: TasksFilter): Boolean {
@@ -489,6 +496,10 @@ class MyDayViewModel : ViewModel() {
     if (!repo.isRemote) return
     _uiState.update { it.copy(isRemote = true, isSyncing = true, syncError = null) }
     viewModelScope.launch {
+      launch {
+        val opts = try { repo.loadSchemaOptions() } catch (_: Exception) { emptyMap() }
+        if (opts.isNotEmpty()) _uiState.update { it.copy(schemaOptions = opts) }
+      }
       try {
         val w = repo.loadWorkspace()
         android.util.Log.i(
@@ -774,6 +785,53 @@ class MyDayViewModel : ViewModel() {
       )
     }
     remoteWrite { it.setTaskPriority(taskId, newPriority) }
+  }
+
+  private fun patchTask(taskId: String, patch: (Task) -> Task) {
+    _uiState.update { s -> s.copy(tasks = s.tasks.map { if (it.id == taskId) patch(it) else it }) }
+  }
+
+  fun setTaskDescription(taskId: String, text: String) {
+    patchTask(taskId) { it.copy(description = text) }
+    remoteWrite { it.setTaskText(taskId, "Description", text) }
+  }
+
+  fun setTaskEnergy(taskId: String, value: String?) {
+    patchTask(taskId) { it.copy(energy = value) }
+    remoteWrite { it.setTaskSelect(taskId, "Energy", value) }
+  }
+
+  fun setTaskLocation(taskId: String, value: String?) {
+    patchTask(taskId) { it.copy(location = value) }
+    remoteWrite { it.setTaskSelect(taskId, "Location", value) }
+  }
+
+  fun setTaskSmartList(taskId: String, value: String?) {
+    patchTask(taskId) { it.copy(smartList = value) }
+    remoteWrite { it.setTaskSelect(taskId, "Smart List", value) }
+  }
+
+  fun setTaskDueDate(taskId: String, iso: String?, endIso: String? = null) {
+    patchTask(taskId) {
+      it.copy(
+        due = iso?.substringBefore('T'),
+        dueEndIso = endIso,
+        dueDisplay = com.example.data.DateUtils.displayLabel(iso).ifBlank { "" },
+        isOverdue = iso != null && com.example.data.DateUtils.bucket(iso.substringBefore('T')) == com.example.data.DateUtils.DueBucket.OVERDUE && !it.isDone,
+      )
+    }
+    remoteWrite { it.setTaskDue(taskId, iso, endIso) }
+  }
+
+  fun setTaskProjectRelation(taskId: String, projectId: String?) {
+    val name = projectId?.let { pid -> _uiState.value.projects.find { it.id == pid }?.name }
+    patchTask(taskId) { it.copy(projectId = projectId, projectName = name) }
+    remoteWrite { it.setTaskProject(taskId, projectId) }
+  }
+
+  fun setTaskLabelSet(taskId: String, labels: List<String>) {
+    patchTask(taskId) { it.copy(labels = labels) }
+    remoteWrite { it.setTaskLabels(taskId, labels) }
   }
 
   fun toggleSubTask(taskId: String, subTaskId: String) {
@@ -1248,10 +1306,10 @@ class MyDayViewModel : ViewModel() {
 
   fun dropGoal(goalId: String) {
     _uiState.update { state ->
-      val updated = state.goals.map { if (it.id == goalId) it.copy(status = "Dropped") else it }
+      val updated = state.goals.map { if (it.id == goalId) it.copy(isArchived = true) else it }
       state.copy(goals = updated, currentScreen = AppScreen.GOALS, snackbarMessage = SnackbarMessage.GoalDropped)
     }
-    remoteWrite { it.setGoalStatus(goalId, "Dropped") }
+    remoteWrite { it.setGoalArchived(goalId, true) }
     navigateBack()
   }
 

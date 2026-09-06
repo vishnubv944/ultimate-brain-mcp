@@ -69,6 +69,30 @@ data class NotionFormula(
 )
 
 @JsonClass(generateAdapter = true)
+data class DataSourceSchema(
+  val properties: Map<String, SchemaProperty> = emptyMap(),
+)
+
+@JsonClass(generateAdapter = true)
+data class SchemaProperty(
+  val id: String? = null,
+  val type: String? = null,
+  val select: SchemaOptions? = null,
+  val status: SchemaOptions? = null,
+  @Json(name = "multi_select") val multiSelect: SchemaOptions? = null,
+) {
+  fun optionNames(): List<String> = when (type) {
+    "select" -> select?.options
+    "status" -> status?.options
+    "multi_select" -> multiSelect?.options
+    else -> null
+  }.orEmpty().mapNotNull { it.name }
+}
+
+@JsonClass(generateAdapter = true)
+data class SchemaOptions(val options: List<NotionOption> = emptyList())
+
+@JsonClass(generateAdapter = true)
 data class MarkdownResponse(
   val markdown: String? = null,
   val truncated: Boolean = false,

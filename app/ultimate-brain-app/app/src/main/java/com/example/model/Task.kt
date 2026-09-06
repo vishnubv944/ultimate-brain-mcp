@@ -41,6 +41,13 @@ data class Task(
   val timeBlock: String? = null,
   val taxonomyArea: String? = null,
   val subTasks: List<SubTask> = emptyList(),
+  // Extended Notion properties.
+  val description: String = "",
+  val energy: String? = null,       // High | Low
+  val location: String? = null,     // Home | Office | Errand
+  val smartList: String? = null,    // Do Next | Delegated | Someday
+  val dueEndIso: String? = null,    // for time-blocked ranges
+  val snoozeIso: String? = null,
 )
 
 data class Project(

@@ -47,9 +47,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.model.Priority
 import com.example.model.TaskStatus
+import com.example.ui.components.DateFieldRow
 import com.example.ui.components.DetailScaffold
 import com.example.ui.components.EmptyLine
 import com.example.ui.components.MarkdownBody
+import com.example.ui.components.OptionRow
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.ThinDivider
 import com.example.ui.components.TodayPad
@@ -69,6 +71,7 @@ fun TaskDetailScreen(
   var newSubtask by remember { mutableStateOf("") }
   var statusMenu by remember { mutableStateOf(false) }
   var priorityMenu by remember { mutableStateOf(false) }
+  var descDraft by remember(task?.id, task?.description) { mutableStateOf(task?.description ?: "") }
 
   DetailScaffold(
     title = "Task",
@@ -141,37 +144,38 @@ fun TaskDetailScreen(
         )
       }
 
-      // Schedule / project / labels / repeat — read-only for now.
-      if (task.dueDisplay.isNotBlank() || task.timeBlock != null) {
-        DetailField("When", listOfNotNull(task.dueDisplay.ifBlank { null }, task.timeBlock).joinToString(" · "))
-      }
+      SectionHeader("Details")
+      DateFieldRow("Due", task.due, { viewModel.setTaskDueDate(task.id, it) })
+      OptionRow(
+        "Project",
+        task.projectName,
+        uiState.projects.filter { !it.isArchived }.map { it.name },
+        { name ->
+          viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id)
+        },
+      )
+      OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
+      OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
+      OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) })
+      if (task.isRecurring) DetailField("Repeats", task.recurrenceText ?: "Recurring")
+      if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
       if (task.projectName != null) {
-        SectionHeader("Project")
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { task.projectId?.let { viewModel.openProjectDetail(it) } }
-            .padding(vertical = 8.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.entityProjects, CircleShape))
-          Spacer(Modifier.size(8.dp))
-          Text(task.projectName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-          Spacer(Modifier.weight(1f))
-          Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {
+          Text("Open ${task.projectName}  →")
         }
       }
-      if (task.labels.isNotEmpty()) {
-        SectionHeader("Labels")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          task.labels.forEach { AssistChip(onClick = {}, label = { Text(it) }) }
+
+      SectionHeader("Description")
+      OutlinedTextField(
+        value = descDraft,
+        onValueChange = { descDraft = it },
+        placeholder = { Text("Add a description") },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+      )
+      if (descDraft != task.description) {
+        androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft) }) {
+          Text("Save description")
         }
-      }
-      if (task.isRecurring) {
-        DetailField("Repeats", task.recurrenceText ?: "Recurring")
-      }
-      if (task.taxonomyArea != null) {
-        DetailField("Area", task.taxonomyArea)
       }
 
       // Sub-tasks

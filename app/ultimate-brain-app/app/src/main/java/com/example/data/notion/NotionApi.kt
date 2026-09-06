@@ -25,6 +25,9 @@ interface NotionApi {
   @GET("pages/{pageId}")
   suspend fun getPage(@Path("pageId") pageId: String): NotionPage
 
+  @GET("data_sources/{dsId}")
+  suspend fun getDataSource(@Path("dsId") dsId: String): DataSourceSchema
+
   @PATCH("pages/{pageId}")
   suspend fun updatePage(
     @Path("pageId") pageId: String,

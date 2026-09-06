@@ -193,6 +193,37 @@ class UbRepository(
     }.id
   }
 
+  /**
+   * Live select/status/multi_select option lists, keyed "<db>.<Property>"
+   * (e.g. "task.Priority" -> ["Low","Medium","High"]). Fetched once on sync
+   * so the editors never rely on a stale hardcoded list.
+   */
+  suspend fun loadSchemaOptions(): Map<String, List<String>> = withContext(Dispatchers.IO) {
+    val c = client ?: return@withContext emptyMap()
+    val dbs = listOf(
+      "task" to NotionConfig.tasksDsId,
+      "project" to NotionConfig.projectsDsId,
+      "note" to NotionConfig.notesDsId,
+      "goal" to NotionConfig.goalsDsId,
+      "tag" to NotionConfig.tagsDsId,
+    ).filter { it.second.isNotBlank() }
+    val out = LinkedHashMap<String, List<String>>()
+    coroutineScope {
+      dbs.map { (prefix, id) ->
+        async {
+          try {
+            val schema = c.call { it.getDataSource(id) }
+            schema.properties.forEach { (name, prop) ->
+              val opts = prop.optionNames()
+              if (opts.isNotEmpty()) synchronized(out) { out["$prefix.$name"] = opts }
+            }
+          } catch (_: Exception) { }
+        }
+      }.forEach { it.await() }
+    }
+    out
+  }
+
   /** Page body as Markdown, or null (unconfigured, empty, or unsupported). */
   suspend fun getPageBody(pageId: String): String? {
     val c = client ?: return null
@@ -232,10 +263,54 @@ class UbRepository(
     c.call { it.updatePage(goalId, mapOf("properties" to mapOf("Status" to mapOf("status" to mapOf("name" to status))))) }
   }
 
-  /** Set a task's Due date (ISO yyyy-MM-dd or full datetime). */
-  suspend fun setTaskDue(taskId: String, iso: String) {
+  suspend fun setGoalArchived(goalId: String, archived: Boolean) {
     val c = client ?: return
-    c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Due" to mapOf("date" to mapOf("start" to iso))))) }
+    c.call { it.updatePage(goalId, mapOf("properties" to mapOf("Archived" to mapOf("checkbox" to archived)))) }
+  }
+
+  /** Set a task's Due date (ISO yyyy-MM-dd or full datetime), optionally with an end. */
+  suspend fun setTaskDue(taskId: String, iso: String?, endIso: String? = null) {
+    val c = client ?: return
+    val date: Any? = if (iso == null) null else buildMap<String, Any> {
+      put("start", iso); if (endIso != null) put("end", endIso)
+    }
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Due" to mapOf("date" to date)))) }
+  }
+
+  suspend fun setTaskText(taskId: String, prop: String, value: String) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(taskId, mapOf("properties" to mapOf(
+        prop to mapOf("rich_text" to listOf(mapOf("text" to mapOf("content" to value)))),
+      )))
+    }
+  }
+
+  /** Set (or clear, value=null) a select property on a task. */
+  suspend fun setTaskSelect(taskId: String, prop: String, value: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("select" to (value?.let { mapOf("name" to it) }))
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf(prop to v))) }
+  }
+
+  suspend fun setTaskCheckbox(taskId: String, prop: String, value: Boolean) {
+    val c = client ?: return
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf(prop to mapOf("checkbox" to value)))) }
+  }
+
+  suspend fun setTaskLabels(taskId: String, labels: List<String>) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(taskId, mapOf("properties" to mapOf(
+        "Labels" to mapOf("multi_select" to labels.map { l -> mapOf("name" to l) }),
+      )))
+    }
+  }
+
+  suspend fun setTaskProject(taskId: String, projectId: String?) {
+    val c = client ?: return
+    val rel = if (projectId == null) emptyList<Any>() else listOf(mapOf("id" to projectId))
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Project" to mapOf("relation" to rel)))) }
   }
 
   /**

@@ -67,6 +67,12 @@ object NotionMappers {
       parentTaskId = p.prop("Parent Task").rel().firstOrNull(),
       timeBlock = if (rawDue != null && dueEnd != null) formatRange(rawDue, dueEnd) else null,
       taxonomyArea = tagIds.firstNotNullOfOrNull { tagNames[it] },
+      description = p.prop("Description")?.plainTitle().orEmpty(),
+      energy = p.prop("Energy")?.selectName(),
+      location = p.prop("Location")?.selectName(),
+      smartList = p.prop("Smart List")?.selectName(),
+      dueEndIso = dueEnd,
+      snoozeIso = p.prop("Snooze")?.dateStart(),
     )
   }
 
@@ -144,6 +150,7 @@ object NotionMappers {
       id = page.id,
       name = p.prop("Name")?.plainTitle().orEmpty(),
       status = p.prop("Status")?.selectName() ?: "Active",
+      isArchived = p.prop("Archived")?.isChecked() == true,
       deadline = DateUtils.displayLabel(deadlineIso).ifBlank { "—" },
       daysRemaining = daysUntil(deadlineIso),
       tagArea = p.prop("Tag").rel().firstNotNullOfOrNull { tagNames[it] } ?: "",
