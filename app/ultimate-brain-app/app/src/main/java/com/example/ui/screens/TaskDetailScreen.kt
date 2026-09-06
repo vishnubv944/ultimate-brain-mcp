@@ -157,7 +157,20 @@ fun TaskDetailScreen(
       OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
       OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
       OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) })
-      if (task.isRecurring) DetailField("Repeats", task.recurrenceText ?: "Recurring")
+      OptionRow(
+        "Repeats", task.recurUnit,
+        uiState.optionsFor("task.Recur Unit", listOf("Day(s)", "Week(s)", "Month(s)", "Year(s)")),
+        { viewModel.setTaskRecurrence(task.id, it, task.recurInterval.coerceAtLeast(1)) },
+      )
+      if (task.recurUnit != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Text("Every", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, (task.recurInterval - 1).coerceAtLeast(1)) }) { Text("−") }
+          Text("${task.recurInterval}", style = MaterialTheme.typography.bodyLarge)
+          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, task.recurInterval + 1) }) { Text("+") }
+          Text(task.recurUnit, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
       if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
       if (task.projectName != null) {
         androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {

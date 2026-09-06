@@ -113,7 +113,8 @@ enum class TasksFilter(@StringRes val labelRes: Int) {
   OVERDUE(R.string.tasks_chip_overdue),
   MY_DAY(R.string.tasks_chip_my_day),
   HIGH_PRIORITY(R.string.tasks_chip_high_priority),
-  RECURRING(R.string.tasks_chip_recurring)
+  RECURRING(R.string.tasks_chip_recurring),
+  DONE(R.string.tasks_chip_recurring),
 }
 
 enum class ProjectFilter(@StringRes val labelRes: Int) {
@@ -465,11 +466,13 @@ data class MyDayUiState(
   // --- Tasks screen -----------------------------------------------------
 
   fun tasksFilterMatches(task: Task, filter: TasksFilter): Boolean {
+    if (filter == TasksFilter.DONE) return task.isDone
     if (task.isDone) return false
     val today = java.time.LocalDate.now()
     val date = DateUtils.parseIsoDate(task.due)
     return when (filter) {
       TasksFilter.ALL -> true
+      TasksFilter.DONE -> task.isDone
       TasksFilter.TODAY -> date == today
       TasksFilter.OVERDUE -> date != null && date.isBefore(today)
       TasksFilter.MY_DAY -> task.isMyDay
@@ -483,7 +486,10 @@ data class MyDayUiState(
   /** Flat, sorted list for a non-ALL filter. */
   fun tasksForFilter(filter: TasksFilter): List<Task> =
     tasks.filter { tasksFilterMatches(it, filter) }
-      .sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
+      .let { list ->
+        if (filter == TasksFilter.DONE) list.sortedByDescending { it.completionDate ?: "" }
+        else list.sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
+      }
 }
 
 class MyDayViewModel : ViewModel() {
@@ -903,6 +909,17 @@ class MyDayViewModel : ViewModel() {
   fun setTaskLabelSet(taskId: String, labels: List<String>) {
     patchTask(taskId) { it.copy(labels = labels) }
     remoteWrite { it.setTaskLabels(taskId, labels) }
+  }
+
+  fun setTaskRecurrence(taskId: String, unit: String?, interval: Int) {
+    patchTask(taskId) {
+      it.copy(
+        recurUnit = unit, recurInterval = interval,
+        isRecurring = unit != null,
+        recurrenceText = unit?.let { u -> "every $interval $u" },
+      )
+    }
+    remoteWrite { it.setTaskRecurrence(taskId, unit, interval) }
   }
 
   private fun patchProject(id: String, f: (ProjectModel) -> ProjectModel) {

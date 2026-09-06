@@ -48,6 +48,8 @@ data class Task(
   val smartList: String? = null,    // Do Next | Delegated | Someday
   val dueEndIso: String? = null,    // for time-blocked ranges
   val snoozeIso: String? = null,
+  val recurUnit: String? = null,    // Day(s) | Week(s) | Month(s) | ...
+  val recurInterval: Int = 1,
 )
 
 data class Project(

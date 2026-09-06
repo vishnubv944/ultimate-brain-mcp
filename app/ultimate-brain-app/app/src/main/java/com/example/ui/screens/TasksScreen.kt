@@ -47,6 +47,7 @@ private val TASK_FILTERS = listOf(
   TasksFilter.OVERDUE to "Overdue",
   TasksFilter.HIGH_PRIORITY to "High priority",
   TasksFilter.RECURRING to "Recurring",
+  TasksFilter.DONE to "Done",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

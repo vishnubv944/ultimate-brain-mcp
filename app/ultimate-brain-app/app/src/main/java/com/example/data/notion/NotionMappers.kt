@@ -73,6 +73,8 @@ object NotionMappers {
       smartList = p.prop("Smart List")?.selectName(),
       dueEndIso = dueEnd,
       snoozeIso = p.prop("Snooze")?.dateStart(),
+      recurUnit = recurUnit,
+      recurInterval = recurInterval,
     )
   }
 

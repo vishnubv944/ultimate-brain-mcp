@@ -58,13 +58,14 @@ class UbRepository(
     // Everything any screen can surface: in-progress, planned for today,
     // scheduled (has a due date), or closed in the last week. Excludes the
     // undated backlog, which the app never shows.
-    val dueCutoff = java.time.LocalDate.now().minusDays(30).toString()
+    val dueCutoff = java.time.LocalDate.now().minusDays(45).toString()
+    val doneCutoff = java.time.LocalDate.now().minusDays(60).toString()
     val openOrRecentTasks = mapOf<String, Any>(
       "or" to listOf(
-        mapOf("property" to "Status", "status" to mapOf("equals" to "Doing")),
+        mapOf("property" to "Status", "status" to mapOf("does_not_equal" to "Done")),
         mapOf("property" to "My Day", "checkbox" to mapOf("equals" to true)),
         mapOf("property" to "Due", "date" to mapOf("on_or_after" to dueCutoff)),
-        mapOf("property" to "Completed", "date" to mapOf("past_week" to emptyMap<String, Any>())),
+        mapOf("property" to "Completed", "date" to mapOf("on_or_after" to doneCutoff)),
       ),
     )
     val notArchivedProjects = mapOf<String, Any>(
@@ -82,7 +83,7 @@ class UbRepository(
       }
 
     val (taskPages, projectPages, notePages, goalPages, tagPages, milestonePages) = coroutineScope {
-      val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = 4) }
+      val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = 8) }
       val p = async { q(NotionConfig.projectsDsId, filter = notArchivedProjects) }
       val n = async { q(NotionConfig.notesDsId, sorts = notesByDate, maxPages = 2) }
       val g = async { q(NotionConfig.goalsDsId) }
@@ -392,6 +393,15 @@ class UbRepository(
         "Labels" to mapOf("multi_select" to labels.map { l -> mapOf("name" to l) }),
       )))
     }
+  }
+
+  suspend fun setTaskRecurrence(taskId: String, unit: String?, interval: Int) {
+    val c = client ?: return
+    val props = mapOf<String, Any>(
+      "Recur Unit" to mapOf("select" to (unit?.let { mapOf("name" to it) })),
+      "Recur Interval" to mapOf("number" to (if (unit == null) null else interval)),
+    )
+    c.call { it.updatePage(taskId, mapOf("properties" to props)) }
   }
 
   suspend fun setTaskProject(taskId: String, projectId: String?) {
