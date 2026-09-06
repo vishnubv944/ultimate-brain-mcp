@@ -526,6 +526,7 @@ class MyDayViewModel : ViewModel() {
           it.copy(
             people = lib.people, books = lib.books, readingLog = lib.readingLog,
             genres = lib.genres, recipes = lib.recipes, mealPlan = lib.mealPlan,
+            workSessions = lib.workSessions,
             libraryLoaded = true,
           )
         }
@@ -971,6 +972,10 @@ class MyDayViewModel : ViewModel() {
   fun setProjectDeadline(id: String, iso: String?) {
     patchProject(id) { it.copy(deadline = DateUtils.displayLabel(iso).ifBlank { "—" }, deadlineIso = iso) }
     remoteWrite { it.setProjectDeadline(id, iso) }
+  }
+  fun setProjectReviewNotes(id: String, text: String) {
+    patchProject(id) { it.copy(reviewNotes = text) }
+    remoteWrite { it.setProjectReviewNotes(id, text) }
   }
   fun setProjectGoalRelation(id: String, goalId: String?) {
     val name = goalId?.let { g -> _uiState.value.goals.find { it.id == g }?.name }

@@ -117,6 +117,7 @@ object NotionMappers {
       goalName = goalIds.firstNotNullOfOrNull { goalNames[it] },
       templateName = null,
       isArchived = p.prop("Archived")?.isChecked() == true,
+      reviewNotes = p.prop("Review Notes")?.plainTitle().orEmpty(),
     )
   }
 
@@ -274,6 +275,33 @@ object NotionMappers {
       logDate = p.prop("Log Date")?.dateStart(),
       startPage = p.prop("Start Page")?.number?.toInt(),
       endPage = p.prop("End Page")?.number?.toInt(),
+    )
+  }
+
+  fun toWorkSession(page: NotionPage, taskTitles: Map<String, String>): com.example.model.WorkSessionModel {
+    val p = page.properties
+    val taskId = p.prop("Tasks", "Task").rel().firstOrNull()
+    val start = p.prop("Start", "Start Time")?.dateStart()
+    val end = p.prop("End", "End Time")?.date?.end ?: p.prop("End", "End Time")?.dateStart()
+    val mins = p.prop("Duration (min)", "Duration")?.number?.toInt()
+      ?: if (start != null && end != null) {
+        try {
+          java.time.Duration.between(
+            java.time.OffsetDateTime.parse(start), java.time.OffsetDateTime.parse(end),
+          ).toMinutes().toInt()
+        } catch (_: Exception) { null }
+      } else null
+    val nm = p.prop("Name")?.plainTitle().orEmpty()
+    return com.example.model.WorkSessionModel(
+      id = page.id,
+      taskName = taskId?.let { taskTitles[it] } ?: nm.removePrefix("Focus · ").ifBlank { nm },
+      taskId = taskId ?: "",
+      projectName = "",
+      timeRange = listOfNotNull(start?.substringAfter('T')?.take(5), end?.substringAfter('T')?.take(5)).joinToString(" – "),
+      duration = mins?.let { if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m" } ?: "",
+      startIso = start,
+      endIso = end,
+      durationMinutes = mins,
     )
   }
 

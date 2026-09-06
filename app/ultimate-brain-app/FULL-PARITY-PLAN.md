@@ -75,3 +75,30 @@ Meta Labels, My Day Label, Current Session.
    retry, surface conflicts.
 
 Each step: build + on-device check + commit.
+
+---
+
+## Progress log
+
+- **Step 1 — done.** Enum fixes (Goal Dream/Active/Achieved, Project
+  Planned/On Hold/…, Note 11 types, Tag status). Runtime schema fetch
+  (`loadSchemaOptions` → `optionsFor("<db>.<Prop>", fallback)`). Fixed
+  invalid `createProject` "Not Started" → "Planned".
+- **Step 2 — done.** Task detail edits every scalar: Status, Priority,
+  My Day, Due (date), Project, Energy, Location, Smart List, Repeats
+  (Recur Unit + interval stepper + Days weekday chips), Snooze, Wait,
+  Focus type (P/I), Labels (multi-select), Enforce Schedule, Shopping
+  List, Description, sub-tasks, page body (markdown read).
+  Widened workspace task load window so Done history is reachable
+  (+ a Done filter on the Tasks screen).
+- **Step 3 — in progress.** Project: Status/Deadline/Goal + Review Notes
+  editor. Goal: Status/Deadline. Note: Type/Date/Project. Tag: favorite.
+  Still TODO: relation pickers for People/Tags on Project/Goal/Note;
+  Milestone Goal relation + detail screen; Goal Set date; Tag parent/sub.
+- **Step 4 — done** (prior commits): People/Books/Reading Log/Genres/
+  Recipes/Meal Planner list+detail+create on the kit.
+- **Step 5 — partial.** Work Sessions history now loads from Notion into
+  the Work Sessions screen. Still TODO: full pagination / load-more for
+  long completed-task history; assignee (people) load.
+- **Step 6 — partial.** Task→Project taps through; more relation nav TODO.
+- **Step 7 — not started.** Offline write queue + sync indicator.

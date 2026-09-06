@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.ui.components.ThinDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,7 +36,7 @@ fun WorkSessionsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier)
   val m = (secs % 3600) / 60
 
   DetailScaffold(title = "Work sessions", onBack = { viewModel.navigateBack() }, modifier = modifier) { pad ->
-    Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = TodayPad)) {
+    Column(modifier = Modifier.fillMaxSize().padding(pad).padding(horizontal = TodayPad).verticalScroll(rememberScrollState())) {
       Spacer(Modifier.height(12.dp))
       StatCard(
         listOf(
@@ -55,8 +58,26 @@ fun WorkSessionsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier)
         EmptyLine("No session running. Start one from a task in Execute.")
       }
 
-      SectionHeader("History")
-      EmptyLine("Session history from Notion isn't loaded here yet — completed sessions are written to your Work Sessions database when you stop the timer.")
+      SectionHeader("History", uiState.workSessions.size)
+      if (uiState.workSessions.isEmpty()) {
+        EmptyLine("No logged sessions yet. Completed focus blocks are written here when you stop the timer.")
+      } else {
+        uiState.workSessions.forEach { s ->
+          Column(Modifier.padding(vertical = 8.dp)) {
+            Text(
+              s.taskName.ifBlank { "Session" },
+              style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium,
+            )
+            val meta = buildList {
+              s.startIso?.let { add(com.example.data.DateUtils.displayLabel(it.substringBefore('T'))) }
+              s.durationMinutes?.let { add(if (it >= 60) "${it / 60}h ${it % 60}m" else "${it}m") }
+            }.joinToString("  ·  ")
+            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          ThinDivider()
+        }
+      }
+      Spacer(Modifier.height(96.dp))
     }
   }
 }

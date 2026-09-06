@@ -26,6 +26,7 @@ data class LibraryData(
   val genres: List<com.example.model.GenreModel> = emptyList(),
   val recipes: List<com.example.model.RecipeModel> = emptyList(),
   val mealPlan: List<com.example.model.MealPlanModel> = emptyList(),
+  val workSessions: List<com.example.model.WorkSessionModel> = emptyList(),
 )
 
 /** Everything the app pulls from Notion in one shot. */
@@ -127,6 +128,7 @@ class UbRepository(
     val alive = { p: NotionPage -> !p.archived && !p.inTrash }
     val bookTitles = bookPages.filter(alive).associate { it.id to (it.properties.prop("Title", "Name")?.plainTitle().orEmpty()) }
     val recipeNames = recipePages.filter(alive).associate { it.id to (it.properties.prop("Name")?.plainTitle().orEmpty()) }
+    val sessionPages = q(NotionConfig.workSessionsDsId, 3)
     LibraryData(
       people = peoplePages.filter(alive).map { NotionMappers.toPerson(it) },
       books = bookPages.filter(alive).map { NotionMappers.toBook(it) },
@@ -134,6 +136,9 @@ class UbRepository(
       genres = genrePages.filter(alive).map { NotionMappers.toGenre(it) },
       recipes = recipePages.filter(alive).map { NotionMappers.toRecipe(it) },
       mealPlan = mealPages.filter(alive).map { NotionMappers.toMealPlan(it, recipeNames) },
+      workSessions = sessionPages.filter(alive)
+        .map { NotionMappers.toWorkSession(it, emptyMap()) }
+        .sortedByDescending { it.startIso ?: "" },
     )
   }
 
@@ -236,6 +241,14 @@ class UbRepository(
     val c = client ?: return
     val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
     c.call { it.updatePage(id, mapOf("properties" to mapOf("Target Deadline" to v))) }
+  }
+  suspend fun setProjectReviewNotes(id: String, text: String) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(id, mapOf("properties" to mapOf(
+        "Review Notes" to mapOf("rich_text" to listOf(mapOf("text" to mapOf("content" to text)))),
+      )))
+    }
   }
   suspend fun setProjectGoal(id: String, goalId: String?) {
     val c = client ?: return

@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -15,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -106,6 +110,21 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
           { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
           Modifier.padding(horizontal = TodayPad),
         )
+
+        SectionHeader("Review notes", modifier = Modifier.padding(horizontal = TodayPad))
+        var reviewDraft by remember(project.id, project.reviewNotes) { mutableStateOf(project.reviewNotes) }
+        androidx.compose.material3.OutlinedTextField(
+          value = reviewDraft,
+          onValueChange = { reviewDraft = it },
+          placeholder = { androidx.compose.material3.Text("What's the current state / next review?") },
+          modifier = Modifier.fillMaxWidth().padding(horizontal = TodayPad, vertical = 4.dp),
+        )
+        if (reviewDraft != project.reviewNotes) {
+          androidx.compose.material3.TextButton(
+            onClick = { viewModel.setProjectReviewNotes(project.id, reviewDraft) },
+            modifier = Modifier.padding(horizontal = TodayPad - 12.dp),
+          ) { androidx.compose.material3.Text("Save review notes") }
+        }
       }
 
       section("Open tasks", open, viewModel)

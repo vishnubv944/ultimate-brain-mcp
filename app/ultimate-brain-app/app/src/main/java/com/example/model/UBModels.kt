@@ -17,7 +17,8 @@ data class ProjectModel(
   val tags: List<String> = listOf("#Work"),
   val goalName: String? = "Ship a stable v2.0 by EOY",
   val templateName: String? = "Product Release Template",
-  val isArchived: Boolean = false
+  val isArchived: Boolean = false,
+  val reviewNotes: String = "",
 )
 
 // --- Notes ---
@@ -110,5 +111,8 @@ data class WorkSessionModel(
   val timeRange: String,
   val duration: String,
   val isRunning: Boolean = false,
-  val isToday: Boolean = true
+  val isToday: Boolean = true,
+  val startIso: String? = null,
+  val endIso: String? = null,
+  val durationMinutes: Int? = null,
 )
