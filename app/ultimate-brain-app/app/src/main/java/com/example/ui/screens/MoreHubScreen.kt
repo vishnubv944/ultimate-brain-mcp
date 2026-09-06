@@ -152,7 +152,7 @@ fun MoreHubScreen(
               onClick = { viewModel.navigateTo(AppScreen.GOALS) },
               testTag = "hub_goals_item"
             )
-            SettingsDivider()
+            com.example.ui.components.ThinDivider()
             MoreHubItemRow(
               icon = Icons.Default.Flag,
               iconTint = MaterialTheme.colorScheme.entityProjects,
@@ -162,7 +162,7 @@ fun MoreHubScreen(
               onClick = { viewModel.navigateTo(AppScreen.MILESTONES) },
               testTag = "hub_milestones_item"
             )
-            SettingsDivider()
+            com.example.ui.components.ThinDivider()
             MoreHubItemRow(
               icon = Icons.Default.Tag,
               iconTint = MaterialTheme.colorScheme.entityTagArea,
@@ -172,7 +172,7 @@ fun MoreHubScreen(
               onClick = { viewModel.navigateTo(AppScreen.TAGS) },
               testTag = "hub_tags_item"
             )
-            SettingsDivider()
+            com.example.ui.components.ThinDivider()
             MoreHubItemRow(
               icon = Icons.Default.Timelapse,
               iconTint = MaterialTheme.colorScheme.primary,
@@ -208,7 +208,7 @@ fun MoreHubScreen(
               onClick = { viewModel.navigateTo(AppScreen.GLOBAL_SEARCH) },
               testTag = "hub_search_item"
             )
-            SettingsDivider()
+            com.example.ui.components.ThinDivider()
             MoreHubItemRow(
               icon = Icons.Default.Settings,
               iconTint = MaterialTheme.colorScheme.onSurfaceVariant,

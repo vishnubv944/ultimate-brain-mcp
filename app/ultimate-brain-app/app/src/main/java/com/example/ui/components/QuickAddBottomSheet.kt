@@ -123,41 +123,23 @@ fun QuickAddBottomSheet(
 
       Spacer(modifier = Modifier.height(10.dp))
 
-      // Input TextField with Mic Icon & Active styling
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        TextField(
-          value = taskName,
-          onValueChange = { taskName = it },
-          placeholder = { Text("What task are you planning?") },
-          modifier = Modifier
-            .weight(1f)
-            .testTag("task_input_field"),
-          colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color.Transparent,
-            unfocusedContainerColor = Color.Transparent,
-            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-            unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant
-          ),
-          textStyle = MaterialTheme.typography.bodyLarge.copy(
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-          ),
-          singleLine = true
-        )
-        IconButton(
-          onClick = { /* Voice input */ },
-          modifier = Modifier.size(48.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Default.Mic,
-            contentDescription = "Voice Input",
-            tint = MaterialTheme.colorScheme.primary
-          )
-        }
-      }
+      TextField(
+        value = taskName,
+        onValueChange = { taskName = it },
+        placeholder = { Text("What task are you planning?") },
+        modifier = Modifier.fillMaxWidth().testTag("task_input_field"),
+        colors = TextFieldDefaults.colors(
+          focusedContainerColor = Color.Transparent,
+          unfocusedContainerColor = Color.Transparent,
+          focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+          unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant
+        ),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+          fontWeight = FontWeight.Medium,
+          color = MaterialTheme.colorScheme.onSurface
+        ),
+        singleLine = true
+      )
 
       Spacer(modifier = Modifier.height(14.dp))
 
@@ -248,126 +230,24 @@ fun QuickAddBottomSheet(
           }
         )
 
-        AssistChip(
-          onClick = { /* Tag selector */ },
-          label = { Text("Tag") },
-          leadingIcon = {
-            Icon(Icons.Default.Tag, contentDescription = null, modifier = Modifier.size(18.dp))
-          }
-        )
-
-        AssistChip(
-          onClick = { /* Time selector */ },
-          label = { Text("Set Time") },
-          leadingIcon = {
-            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
-          }
-        )
       }
 
-      Spacer(modifier = Modifier.height(14.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
-      // Contextual Smart Prediction Banner
-      Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
+      Button(
+        onClick = {
+          if (taskName.isNotBlank()) onSaveTask(taskName, selectedProject?.id, selectedPriority, isMyDay)
+        },
+        enabled = taskName.isNotBlank(),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+        modifier = Modifier.fillMaxWidth().testTag("save_task_btn"),
       ) {
-        Row(
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Default.AutoAwesome,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp)
-          )
-          Text(
-            text = "Adding to Q3 launch project based on current focus.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(16.dp))
-
-      // Action Bar: Left Quick Tool Icons + Right Primary Pill "✓ Save Task"
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-          IconButton(
-            onClick = { /* Keyboard toggle */ },
-            modifier = Modifier.size(48.dp)
-          ) {
-            Icon(
-              imageVector = Icons.Default.KeyboardHide,
-              contentDescription = "Hide Keyboard",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-
-          IconButton(
-            onClick = { /* Attachment */ },
-            modifier = Modifier.size(48.dp)
-          ) {
-            Icon(
-              imageVector = Icons.Default.AttachFile,
-              contentDescription = "Attach File",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-
-          IconButton(
-            onClick = { /* Subtasks list */ },
-            modifier = Modifier.size(48.dp)
-          ) {
-            Icon(
-              imageVector = Icons.Default.FormatListBulleted,
-              contentDescription = "Checklist",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-        }
-
-        // M3 Filled button — replaces the iOS-style circular pill so save is
-        // a real Material primitive (state layer, tonal elevation, content
-        // padding, accessible role).
-        Button(
-          onClick = {
-            if (taskName.isNotBlank()) {
-              onSaveTask(taskName, selectedProject?.id, selectedPriority, isMyDay)
-            }
-          },
-          enabled = taskName.isNotBlank(),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-          ),
-          modifier = Modifier.testTag("save_task_btn"),
-        ) {
-          Icon(
-            imageVector = Icons.Default.Check,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Save Task",
-            style = MaterialTheme.typography.labelLarge,
-          )
-        }
+        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Save task", style = MaterialTheme.typography.labelLarge)
       }
     }
   }
