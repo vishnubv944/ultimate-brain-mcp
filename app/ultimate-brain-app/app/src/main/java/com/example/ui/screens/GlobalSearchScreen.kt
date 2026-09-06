@@ -70,7 +70,7 @@ fun GlobalSearchScreen(
     topBar = {
       TopAppBar(
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.TODAY) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

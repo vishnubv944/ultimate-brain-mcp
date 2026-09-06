@@ -61,7 +61,19 @@ enum class AppScreen {
  */
 sealed class NavIntent {
   data class Navigate(val screen: AppScreen) : NavIntent()
+  /** Pop the current destination off the back stack (in-app back arrows). */
+  data object Back : NavIntent()
 }
+
+/**
+ * The five top-level bottom-navigation destinations. Navigating to one of
+ * these resets to a single back-stack entry (standard M3 bottom-nav
+ * behaviour) rather than stacking peers on top of each other.
+ */
+val AppScreen.isTopLevelTab: Boolean
+  get() = this == AppScreen.TODAY || this == AppScreen.TASKS ||
+    this == AppScreen.PROJECTS || this == AppScreen.NOTES ||
+    this == AppScreen.MORE_HUB
 
 /**
  * Type-safe filter values for the various list screens. Each enum constant
@@ -392,6 +404,15 @@ class MyDayViewModel : ViewModel() {
    */
   private fun emitNav(screen: AppScreen) {
     _navigationEvents.trySend(NavIntent.Navigate(screen))
+  }
+
+  /**
+   * In-app back navigation (top-bar back arrows on detail / sub screens).
+   * Pops the NavHost back stack instead of pushing the parent route on top
+   * of itself, which previously made the stack grow without bound.
+   */
+  fun navigateBack() {
+    _navigationEvents.trySend(NavIntent.Back)
   }
 
   /**
@@ -764,7 +785,8 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.ProjectSaved(updatedProject.name)
       )
     }
-    emitNav(AppScreen.PROJECT_DETAIL)
+    // Return to the project detail we came from (edit_project -> project_detail).
+    navigateBack()
   }
 
   fun archiveProject(projectId: String) {
@@ -776,7 +798,8 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.ProjectArchived
       )
     }
-    emitNav(AppScreen.PROJECTS)
+    // project_detail -> projects list.
+    navigateBack()
   }
 
   // --- Notes Actions ---
@@ -847,7 +870,8 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.NoteSaved
       )
     }
-    emitNav(AppScreen.NOTE_DETAIL)
+    // note_editor -> note_detail.
+    navigateBack()
   }
 
   // --- Goals & Milestones Actions ---
@@ -885,7 +909,7 @@ class MyDayViewModel : ViewModel() {
       val updated = state.goals.map { if (it.id == goalId) it.copy(status = "Dropped") else it }
       state.copy(goals = updated, currentScreen = AppScreen.GOALS, snackbarMessage = SnackbarMessage.GoalDropped)
     }
-    emitNav(AppScreen.GOALS)
+    navigateBack()
   }
 
   fun achieveGoal(goalId: String) {
@@ -893,7 +917,7 @@ class MyDayViewModel : ViewModel() {
       val updated = state.goals.map { if (it.id == goalId) it.copy(status = "Achieved", aggregatedProgress = 1.0f, aggregatedProgressText = "100%") else it }
       state.copy(goals = updated, currentScreen = AppScreen.GOALS, snackbarMessage = SnackbarMessage.GoalAchieved)
     }
-    emitNav(AppScreen.GOALS)
+    navigateBack()
   }
 
   fun selectMilestoneFilter(filter: MilestoneFilter) {

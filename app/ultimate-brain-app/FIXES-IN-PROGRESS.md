@@ -196,6 +196,36 @@ Compile check: `./gradlew :app:assembleDebug --no-daemon -q` — clean, APK inst
 
 ---
 
+## Round 8 — Navigation back-stack fix (pre-backend prep)
+
+**Problem:** in-app back arrows on detail / sub screens called
+`viewModel.navigateTo(AppScreen.<parent>)`, which emits `NavIntent.Navigate`
+→ `navController.navigate(route)`. That *pushes* the parent route on top of
+itself instead of popping, so the back stack grew without bound
+(projects → project_detail → projects → project_detail → …). Same for the
+5 bottom-nav tabs stacking on each other.
+
+**Fix:**
+- `MyDayViewModel.kt` — added `NavIntent.Back` + `fun navigateBack()`
+  (emits it). Added `AppScreen.isTopLevelTab` extension for the 5 tabs.
+- `MainActivity.kt` — `NavIntent.Back` → `navController.popBackStack()`.
+  Top-level tab navigation now uses the standard M3 bottom-nav options:
+  `popUpTo(graph.startDestinationId){ saveState = true }` + `restoreState`
+  + `launchSingleTop`, so tabs don't stack and each keeps its own state.
+- 11 in-app back arrows (`ProjectDetail`, `GoalDetail`, `NoteDetail`,
+  `NoteEditor` cancel, `EditProject` cancel, `TagDetail`, `Tags`,
+  `Milestones`, `WorkSessions`, `Settings`, `GlobalSearch`) → `navigateBack()`.
+- Post-mutation redirects that meant "go back" (`saveProject`, `saveNote`,
+  `archiveProject`, `dropGoal`, `achieveGoal`) → `navigateBack()` instead of
+  `emitNav(parent)`.
+- `task_detail` already used an `onNavigateBack` → `popBackStack()` lambda;
+  left as-is.
+
+Verified on device: Tasks→detail→back lands on Tasks; Projects→detail→back
+lands on Projects; tab bar still switches. `assembleDebug` clean.
+
+---
+
 ## Methodology notes
 
 - Inline edits, no sub-agent dispatch needed for Round 1 (small scope, full ground truth in context).

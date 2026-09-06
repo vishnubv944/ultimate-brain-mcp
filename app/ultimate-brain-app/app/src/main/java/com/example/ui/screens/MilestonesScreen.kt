@@ -89,7 +89,7 @@ fun MilestonesScreen(
         scrollBehavior = scrollBehavior,
         title = { Text(stringResource(R.string.milestones_title), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.GOALS) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
           }
         },

@@ -76,7 +76,7 @@ fun GoalDetailScreen(
       TopAppBar(
         title = { Text("Goal Detail", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.GOALS) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

@@ -73,7 +73,7 @@ fun NoteDetailScreen(
       TopAppBar(
         title = { Text("Note", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.NOTES) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

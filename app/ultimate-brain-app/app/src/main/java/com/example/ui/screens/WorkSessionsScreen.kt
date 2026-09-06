@@ -80,7 +80,7 @@ fun WorkSessionsScreen(
         scrollBehavior = scrollBehavior,
         title = { Text("Work Sessions", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.MORE_HUB) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

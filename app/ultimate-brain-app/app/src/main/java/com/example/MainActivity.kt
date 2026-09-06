@@ -37,6 +37,7 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.MyDayViewModel
 import com.example.viewmodel.NavIntent
+import com.example.viewmodel.isTopLevelTab
 
 class MainActivity : ComponentActivity() {
   private val viewModel: MyDayViewModel by viewModels()
@@ -65,8 +66,20 @@ class MainActivity : ComponentActivity() {
               if (navController.currentDestination?.route != route) {
                 navController.navigate(route) {
                   launchSingleTop = true
+                  if (intent.screen.isTopLevelTab) {
+                    // Standard M3 bottom-nav behaviour: don't stack tabs on
+                    // top of each other; pop back to the graph start and
+                    // preserve/restore each tab's own scroll + nested state.
+                    popUpTo(navController.graph.startDestinationId) {
+                      saveState = true
+                    }
+                    restoreState = true
+                  }
                 }
               }
+            }
+            is NavIntent.Back -> {
+              navController.popBackStack()
             }
           }
         }

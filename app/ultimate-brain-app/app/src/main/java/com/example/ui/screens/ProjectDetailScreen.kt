@@ -88,7 +88,7 @@ fun ProjectDetailScreen(
           )
         },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.PROJECTS) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

@@ -77,7 +77,7 @@ fun TagDetailScreen(
       TopAppBar(
         title = { Text("Tag Detail", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.TAGS) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
           }
         },

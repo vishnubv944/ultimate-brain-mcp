@@ -78,7 +78,7 @@ fun EditProjectScreen(
       TopAppBar(
         title = { Text("Edit Project", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
         navigationIcon = {
-          IconButton(onClick = { viewModel.navigateTo(AppScreen.PROJECT_DETAIL) }) {
+          IconButton(onClick = { viewModel.navigateBack() }) {
             Icon(Icons.Default.Close, contentDescription = "Cancel")
           }
         },
