@@ -3,6 +3,7 @@ package com.example.data.notion
 import com.example.data.DateUtils
 import com.example.model.GoalModel
 import com.example.model.GoalProjectSummary
+import com.example.model.MilestoneModel
 import com.example.model.NoteModel
 import com.example.model.Priority
 import com.example.model.ProjectModel
@@ -164,6 +165,33 @@ object NotionMappers {
         )
       },
       completionDate = p.prop("Achieved")?.dateStart(),
+    )
+  }
+
+  fun toMilestone(
+    page: NotionPage,
+    goalNames: Map<String, String>,
+    today: LocalDate = LocalDate.now(),
+  ): MilestoneModel {
+    val p = page.properties
+    val goalId = p.prop("Goal", "Goals", "Related Goal").rel().firstOrNull()
+    val completed = p.prop("Date Completed")?.dateStart()
+    val deadlineIso = p.prop("Target Deadline")?.dateStart()?.substringBefore('T')
+    val deadline = DateUtils.parseIsoDate(deadlineIso)
+    val status = when {
+      completed != null -> "Completed"
+      deadline != null && !deadline.isAfter(today) -> "In Progress"
+      else -> "Pending"
+    }
+    return MilestoneModel(
+      id = page.id,
+      name = p.prop("Name")?.plainTitle().orEmpty(),
+      goalId = goalId ?: "",
+      goalName = goalId?.let { goalNames[it] } ?: "",
+      goalCategory = "",
+      status = status,
+      targetDateText = deadlineIso?.let { "Target: ${DateUtils.displayLabel(it)}" } ?: "",
+      isToday = deadline == today,
     )
   }
 

@@ -502,6 +502,7 @@ class MyDayViewModel : ViewModel() {
             notes = w.notes,
             goals = w.goals,
             tags = if (w.tags.isNotEmpty()) w.tags else state.tags,
+            milestones = if (w.milestones.isNotEmpty()) w.milestones else state.milestones,
             isSyncing = false,
             syncError = null,
           )
@@ -1279,6 +1280,8 @@ class MyDayViewModel : ViewModel() {
       }
       state.copy(milestones = updated)
     }
+    val done = _uiState.value.milestones.firstOrNull { it.id == milestoneId }?.status == "Completed"
+    remoteWrite { it.setMilestoneCompleted(milestoneId, done) }
   }
 
   // --- Tags Actions ---

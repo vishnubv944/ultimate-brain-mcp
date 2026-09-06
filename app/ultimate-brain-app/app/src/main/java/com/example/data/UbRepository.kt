@@ -26,6 +26,7 @@ data class WorkspaceData(
   val notes: List<NoteModel>,
   val goals: List<GoalModel>,
   val tags: List<TagModel>,
+  val milestones: List<com.example.model.MilestoneModel> = emptyList(),
 )
 
 /**
@@ -71,13 +72,14 @@ class UbRepository(
         if (e.code() == 400 && (filter != null || sorts != null)) c.queryAll(dsId, maxPages = maxPages) else throw e
       }
 
-    val (taskPages, projectPages, notePages, goalPages, tagPages) = coroutineScope {
+    val (taskPages, projectPages, notePages, goalPages, tagPages, milestonePages) = coroutineScope {
       val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = 4) }
       val p = async { q(NotionConfig.projectsDsId, filter = notArchivedProjects) }
       val n = async { q(NotionConfig.notesDsId, sorts = notesByDate, maxPages = 2) }
       val g = async { q(NotionConfig.goalsDsId) }
       val tag = async { if (NotionConfig.tagsDsId.isNotBlank()) q(NotionConfig.tagsDsId) else emptyList() }
-      FiveLists(t.await(), p.await(), n.await(), g.await(), tag.await())
+      val ms = async { if (NotionConfig.milestonesDsId.isNotBlank()) q(NotionConfig.milestonesDsId, maxPages = 2) else emptyList() }
+      SixLists(t.await(), p.await(), n.await(), g.await(), tag.await(), ms.await())
     }
 
     val alive = { page: NotionPage -> !page.archived && !page.inTrash }
@@ -94,8 +96,16 @@ class UbRepository(
     val notes = notePages.filter(alive).map { NotionMappers.toNote(it, projectNames, tagNames) }
     val goals = goalPages.filter(alive).map { NotionMappers.toGoal(it, projectsById, tagNames) }
     val tags = tagPages.filter(alive).map { NotionMappers.toTag(it) }
+    val milestones = milestonePages.filter(alive).map { NotionMappers.toMilestone(it, goalNames) }
 
-    WorkspaceData(tasks, projects, notes, goals, tags)
+    WorkspaceData(tasks, projects, notes, goals, tags, milestones)
+  }
+
+  suspend fun setMilestoneCompleted(milestoneId: String, completed: Boolean) {
+    val c = client ?: return
+    val iso = if (completed) java.time.LocalDate.now().toString() else null
+    val value: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(milestoneId, mapOf("properties" to mapOf("Date Completed" to value))) }
   }
 
   // --- writes ---------------------------------------------------------------
@@ -279,10 +289,11 @@ class UbRepository(
     notes = DummyData.notesList,
     goals = DummyData.goalsList,
     tags = DummyData.tagsList,
+    milestones = DummyData.milestonesList,
   )
 
-  private data class FiveLists(
+  private data class SixLists(
     val a: List<NotionPage>, val b: List<NotionPage>, val c: List<NotionPage>,
-    val d: List<NotionPage>, val e: List<NotionPage>,
+    val d: List<NotionPage>, val e: List<NotionPage>, val f: List<NotionPage>,
   )
 }

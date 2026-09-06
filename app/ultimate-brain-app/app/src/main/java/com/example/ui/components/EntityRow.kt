@@ -2,6 +2,9 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +47,8 @@ fun EntityRow(
   leadingDot: Color? = null,
   leadingIcon: ImageVector? = null,
   leadingIconTint: Color = Color.Unspecified,
+  leadingCheck: Boolean? = null,
+  onLeadingClick: (() -> Unit)? = null,
   strikethrough: Boolean = false,
   trailing: @Composable (() -> Unit)? = null,
 ) {
@@ -55,8 +60,19 @@ fun EntityRow(
       .padding(vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+    Box(
+      modifier = Modifier
+        .size(40.dp)
+        .then(if (onLeadingClick != null) Modifier.clip(CircleShape).clickable(onClick = onLeadingClick) else Modifier),
+      contentAlignment = Alignment.Center,
+    ) {
       when {
+        leadingCheck != null -> Icon(
+          if (leadingCheck) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+          contentDescription = null,
+          tint = if (leadingCheck) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+          modifier = Modifier.size(22.dp),
+        )
         leadingIcon != null -> Icon(
           leadingIcon,
           contentDescription = null,
