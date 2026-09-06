@@ -57,11 +57,14 @@ object DateUtils {
    *  - other            → "Sep 30, 2027"
    */
   fun displayLabel(dueIso: String?, today: LocalDate = LocalDate.now()): String {
-    val date = parseIsoDate(dueIso) ?: return ""
+    val date = parseIsoDate(dueIso?.substringBefore('T')) ?: return ""
     return when {
       date == today -> "Today"
       date == today.plusDays(1) -> "Tomorrow"
-      date.year == today.year && date.isBefore(today.plusDays(7)) ->
+      date == today.minusDays(1) -> "Yesterday"
+      // Upcoming within a week → short weekday. Past dates never do this
+      // (a bare "Sat" reads like the future) — they get a real date.
+      date.isAfter(today) && date.isBefore(today.plusDays(7)) ->
         date.format(DateTimeFormatter.ofPattern("EEE"))
       date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d"))
       else -> date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))

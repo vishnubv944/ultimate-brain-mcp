@@ -5,7 +5,18 @@ screen. The same three classes of problem the Today tab had (card-soup UI,
 dead controls, local-only / fake data) recur across the app; this is the
 inventory before we start fixing.
 
-**Status:** exploration complete. Nothing implemented yet.
+**Status:** exploration complete. Executing.
+
+### Decisions (2026-09-06)
+- **Fictional fields:** DELETE. `Task.acceptanceCriteria`, `Task.codeSnippet`,
+  `Note.attendees/agenda/noteBullets/decisions/actionItems` come out of the
+  model and UI. Detail screens show real properties + the real Notion page
+  body (fetched via the markdown endpoint).
+- **Secondary DBs:** IN SCOPE. People / Books / Reading Log / Recipes / Meal
+  Planner get basic list + detail screens on the shared kit — added as
+  **Batch 6**.
+- **Cadence:** work through all batches; build + on-device screenshot +
+  commit after each.
 
 ---
 

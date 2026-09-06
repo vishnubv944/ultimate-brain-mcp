@@ -114,9 +114,10 @@ enum class TasksFilter(@StringRes val labelRes: Int) {
 
 enum class ProjectFilter(@StringRes val labelRes: Int) {
   ALL(R.string.projects_chip_all_format),
-  STATUS_DOING(R.string.projects_chip_status_doing_format),
-  TAG_WORK(R.string.projects_chip_tag_format),
-  GOAL_Q3(R.string.projects_chip_goal_format)
+  ACTIVE(R.string.projects_chip_status_doing_format),
+  DOING(R.string.projects_chip_status_doing_format),
+  DONE(R.string.projects_chip_goal_format),
+  ARCHIVED(R.string.projects_chip_tag_format),
 }
 
 enum class NoteFilter(@StringRes val labelRes: Int) {
@@ -269,13 +270,19 @@ data class MyDayUiState(
       return String.format("%02d:%02d:%02d", hours, minutes, secs)
     }
 
+  fun projectFilterMatches(p: ProjectModel, f: ProjectFilter): Boolean = when (f) {
+    ProjectFilter.ALL -> !p.isArchived
+    ProjectFilter.ACTIVE -> !p.isArchived && p.status != "Done"
+    ProjectFilter.DOING -> !p.isArchived && p.status == "Doing"
+    ProjectFilter.DONE -> !p.isArchived && p.status == "Done"
+    ProjectFilter.ARCHIVED -> p.isArchived
+  }
+
+  fun projectFilterCount(f: ProjectFilter): Int = projects.count { projectFilterMatches(it, f) }
+
   val filteredProjects: List<ProjectModel>
-    get() = when (selectedProjectFilter) {
-      ProjectFilter.STATUS_DOING -> projects.filter { it.status == "Doing" }
-      ProjectFilter.TAG_WORK -> projects.filter { it.tags.contains("#Work") }
-      ProjectFilter.GOAL_Q3 -> projects.filter { it.goalName?.contains("v2.0") == true }
-      ProjectFilter.ALL -> projects
-    }
+    get() = projects.filter { projectFilterMatches(it, selectedProjectFilter) }
+      .sortedWith(compareByDescending<ProjectModel> { it.status == "Doing" }.thenBy { it.name })
 
   val filteredNotes: List<NoteModel>
     get() = when (selectedNoteFilter) {
@@ -426,6 +433,29 @@ data class MyDayUiState(
 
   val openTodayTasks: List<Task>
     get() = tasks.filter { it.isMyDay && !it.isDone }
+
+  // --- Tasks screen -----------------------------------------------------
+
+  fun tasksFilterMatches(task: Task, filter: TasksFilter): Boolean {
+    if (task.isDone) return false
+    val today = java.time.LocalDate.now()
+    val date = DateUtils.parseIsoDate(task.due)
+    return when (filter) {
+      TasksFilter.ALL -> true
+      TasksFilter.TODAY -> date == today
+      TasksFilter.OVERDUE -> date != null && date.isBefore(today)
+      TasksFilter.MY_DAY -> task.isMyDay
+      TasksFilter.HIGH_PRIORITY -> task.priority == com.example.model.Priority.HIGH
+      TasksFilter.RECURRING -> task.isRecurring
+    }
+  }
+
+  fun tasksFilterCount(filter: TasksFilter): Int = tasks.count { tasksFilterMatches(it, filter) }
+
+  /** Flat, sorted list for a non-ALL filter. */
+  fun tasksForFilter(filter: TasksFilter): List<Task> =
+    tasks.filter { tasksFilterMatches(it, filter) }
+      .sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
 }
 
 class MyDayViewModel : ViewModel() {
@@ -722,6 +752,7 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.PriorityUpdated(newPriority)
       )
     }
+    remoteWrite { it.setTaskPriority(taskId, newPriority) }
   }
 
   fun toggleSubTask(taskId: String, subTaskId: String) {
@@ -982,8 +1013,42 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.ProjectSaved(updatedProject.name)
       )
     }
+    remoteWrite {
+      it.updateProject(
+        updatedProject.id,
+        updatedProject.name,
+        updatedProject.status,
+        DateUtils.parseIsoDate(updatedProject.deadline)?.toString(),
+      )
+    }
     // Return to the project detail we came from (edit_project -> project_detail).
     navigateBack()
+  }
+
+  /** Create a project and jump straight into its editor. */
+  fun createNewProject() {
+    val tempId = "p-new-${System.currentTimeMillis()}"
+    val draft = ProjectModel(id = tempId, name = "New project", status = "Not Started")
+    _uiState.update {
+      it.copy(projects = listOf(draft) + it.projects, selectedProjectId = tempId, currentScreen = AppScreen.EDIT_PROJECT)
+    }
+    emitNav(AppScreen.EDIT_PROJECT)
+    if (repo.isRemote) {
+      viewModelScope.launch {
+        try {
+          repo.createProject("New project")?.let { realId ->
+            _uiState.update { s ->
+              s.copy(
+                projects = s.projects.map { if (it.id == tempId) it.copy(id = realId) else it },
+                selectedProjectId = if (s.selectedProjectId == tempId) realId else s.selectedProjectId,
+              )
+            }
+          }
+        } catch (e: Exception) {
+          _uiState.update { it.copy(syncError = e.message ?: "Could not create project") }
+        }
+      }
+    }
   }
 
   fun archiveProject(projectId: String) {

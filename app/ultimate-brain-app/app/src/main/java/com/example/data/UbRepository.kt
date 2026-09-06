@@ -125,6 +125,62 @@ class UbRepository(
     c.call { it.updatePage(projectId, mapOf("properties" to mapOf("Archived" to mapOf("checkbox" to archived)))) }
   }
 
+  suspend fun setTaskPriority(taskId: String, priority: com.example.model.Priority?) {
+    val c = client ?: return
+    val name = when (priority) {
+      com.example.model.Priority.HIGH -> "High"
+      com.example.model.Priority.MEDIUM -> "Medium"
+      com.example.model.Priority.LOW -> "Low"
+      null -> null
+    }
+    val value: Any = if (name == null) mapOf("status" to null) else mapOf("status" to mapOf("name" to name))
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Priority" to value))) }
+  }
+
+  suspend fun updateProject(projectId: String, name: String, status: String, deadlineIso: String?) {
+    val c = client ?: return
+    val props = buildMap<String, Any> {
+      put("Name", mapOf("title" to listOf(mapOf("text" to mapOf("content" to name)))))
+      put("Status", mapOf("status" to mapOf("name" to status)))
+      if (deadlineIso != null) put("Target Deadline", mapOf("date" to mapOf("start" to deadlineIso)))
+    }
+    c.call { it.updatePage(projectId, mapOf("properties" to props)) }
+  }
+
+  suspend fun createProject(name: String): String? {
+    val c = client ?: return null
+    val props = mapOf<String, Any>(
+      "Name" to mapOf("title" to listOf(mapOf("text" to mapOf("content" to name)))),
+      "Status" to mapOf("status" to mapOf("name" to "Not Started")),
+    )
+    return c.call {
+      it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.projectsDsId), "properties" to props))
+    }.id
+  }
+
+  suspend fun createNote(title: String, type: String, projectId: String?): String? {
+    val c = client ?: return null
+    val props = buildMap<String, Any> {
+      put("Name", mapOf("title" to listOf(mapOf("text" to mapOf("content" to title)))))
+      put("Type", mapOf("select" to mapOf("name" to type)))
+      projectId?.let { put("Project", mapOf("relation" to listOf(mapOf("id" to it)))) }
+    }
+    return c.call {
+      it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.notesDsId), "properties" to props))
+    }.id
+  }
+
+  suspend fun createGoal(name: String): String? {
+    val c = client ?: return null
+    val props = mapOf<String, Any>(
+      "Name" to mapOf("title" to listOf(mapOf("text" to mapOf("content" to name)))),
+      "Status" to mapOf("status" to mapOf("name" to "Active")),
+    )
+    return c.call {
+      it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.goalsDsId), "properties" to props))
+    }.id
+  }
+
   suspend fun setGoalStatus(goalId: String, status: String) {
     val c = client ?: return
     c.call { it.updatePage(goalId, mapOf("properties" to mapOf("Status" to mapOf("status" to mapOf("name" to status))))) }

@@ -51,20 +51,13 @@ fun WrapUpPane(
     )
     Spacer(Modifier.height(12.dp))
 
-    Surface(
-      shape = RoundedCornerShape(20.dp),
-      color = MaterialTheme.colorScheme.surfaceContainerHigh,
-      modifier = Modifier.fillMaxWidth(),
-    ) {
-      Row(
-        modifier = Modifier.padding(vertical = 20.dp, horizontal = 12.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-      ) {
-        Stat(doneCount.toString(), "done")
-        Stat(formatFocus(focusedSeconds), "focused")
-        Stat(openTasks.size.toString(), "still open")
-      }
-    }
+    StatCard(
+      listOf(
+        Stat(doneCount.toString(), "done"),
+        Stat(formatFocus(focusedSeconds), "focused"),
+        Stat(openTasks.size.toString(), "still open"),
+      )
+    )
 
     SectionHeader("Still open", openTasks.size)
     if (openTasks.isEmpty()) {
@@ -99,23 +92,6 @@ fun WrapUpPane(
       Text("  Write journal entry")
     }
     Spacer(Modifier.height(96.dp))
-  }
-}
-
-@Composable
-private fun Stat(value: String, label: String) {
-  Column(horizontalAlignment = Alignment.CenterHorizontally) {
-    Text(
-      text = value,
-      style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
-      fontWeight = FontWeight.Bold,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-      text = label,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
   }
 }
 
