@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.DateUtils
 import com.example.data.DummyData
+import com.example.data.UbRepository
 import com.example.model.AcceptanceCriterion
 import com.example.model.DailyRitualPhase
 import com.example.model.GoalModel
@@ -224,6 +225,11 @@ data class MyDayUiState(
   // this; MainActivity observes it via collectAsState() and feeds it into
   // MyApplicationTheme(dynamicColor = ...).
   val dynamicColorEnabled: Boolean = false,
+
+  // Notion sync (Direct API). `isRemote` false => running on bundled DummyData.
+  val isRemote: Boolean = false,
+  val isSyncing: Boolean = false,
+  val syncError: String? = null,
 ) {
   val selectedTask: Task?
     get() = tasks.find { it.id == selectedTaskId } ?: tasks.firstOrNull()
@@ -372,8 +378,52 @@ class MyDayViewModel : ViewModel() {
   private val _navigationEvents = Channel<NavIntent>(Channel.BUFFERED)
   val navigationEvents: Flow<NavIntent> = _navigationEvents.receiveAsFlow()
 
+  private val repo = UbRepository()
+
   init {
     startTimerLoop()
+    if (repo.isRemote) refreshFromNotion()
+  }
+
+  /** Pull the full workspace from Notion and replace the local state. */
+  fun refreshFromNotion() {
+    if (!repo.isRemote) return
+    _uiState.update { it.copy(isRemote = true, isSyncing = true, syncError = null) }
+    viewModelScope.launch {
+      try {
+        val w = repo.loadWorkspace()
+        android.util.Log.i(
+          "UbSync",
+          "loaded tasks=${w.tasks.size} projects=${w.projects.size} notes=${w.notes.size} goals=${w.goals.size} tags=${w.tags.size}",
+        )
+        _uiState.update { state ->
+          state.copy(
+            tasks = w.tasks,
+            projects = w.projects,
+            notes = w.notes,
+            goals = w.goals,
+            tags = if (w.tags.isNotEmpty()) w.tags else state.tags,
+            isSyncing = false,
+            syncError = null,
+          )
+        }
+      } catch (e: Exception) {
+        android.util.Log.e("UbSync", "workspace load failed", e)
+        _uiState.update { it.copy(isSyncing = false, syncError = e.message ?: "Sync failed") }
+      }
+    }
+  }
+
+  /** Fire a write to Notion without blocking the optimistic local update. */
+  private fun remoteWrite(block: suspend (UbRepository) -> Unit) {
+    if (!repo.isRemote) return
+    viewModelScope.launch {
+      try {
+        block(repo)
+      } catch (e: Exception) {
+        _uiState.update { it.copy(syncError = e.message ?: "Save failed") }
+      }
+    }
   }
 
   private fun startTimerLoop() {
@@ -490,6 +540,8 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.TaskStatusUpdated
       )
     }
+    val nowDone = _uiState.value.tasks.firstOrNull { it.id == taskId }?.isDone == true
+    remoteWrite { it.setTaskStatus(taskId, if (nowDone) TaskStatus.DONE else TaskStatus.TODO) }
   }
 
   fun toggleTaskStatus(taskId: String) = toggleTaskCompletion(taskId)
@@ -505,6 +557,8 @@ class MyDayViewModel : ViewModel() {
       }
       state.copy(tasks = updated)
     }
+    val myDay = _uiState.value.tasks.firstOrNull { it.id == taskId }?.isMyDay == true
+    remoteWrite { it.setTaskMyDay(taskId, myDay) }
   }
 
   fun updateTaskStatus(taskId: String, newStatus: TaskStatus) {
@@ -524,6 +578,7 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.TaskStatusChanged(newStatus)
       )
     }
+    remoteWrite { it.setTaskStatus(taskId, newStatus) }
   }
 
   fun updateTaskPriority(taskId: String, newPriority: Priority?) {
@@ -693,6 +748,21 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.TaskAdded(name.trim())
       )
     }
+    if (repo.isRemote) {
+      viewModelScope.launch {
+        try {
+          val realId = repo.createTask(name.trim(), projectId, priority, isMyDay)
+          if (realId != null) {
+            // Swap the optimistic row's temp id for the real Notion page id.
+            _uiState.update { state ->
+              state.copy(tasks = state.tasks.map { if (it.id == newTask.id) it.copy(id = realId) else it })
+            }
+          }
+        } catch (e: Exception) {
+          _uiState.update { it.copy(syncError = e.message ?: "Could not create task") }
+        }
+      }
+    }
   }
 
   fun clearSnackbar() {
@@ -798,6 +868,7 @@ class MyDayViewModel : ViewModel() {
         snackbarMessage = SnackbarMessage.ProjectArchived
       )
     }
+    remoteWrite { it.setProjectArchived(projectId, true) }
     // project_detail -> projects list.
     navigateBack()
   }
@@ -845,6 +916,8 @@ class MyDayViewModel : ViewModel() {
       val updated = state.notes.map { if (it.id == noteId) it.copy(isFavorite = !it.isFavorite) else it }
       state.copy(notes = updated)
     }
+    val fav = _uiState.value.notes.firstOrNull { it.id == noteId }?.isFavorite == true
+    remoteWrite { it.setNoteFavorite(noteId, fav) }
   }
 
   fun toggleNoteActionItem(noteId: String, actionId: String) {
@@ -909,6 +982,7 @@ class MyDayViewModel : ViewModel() {
       val updated = state.goals.map { if (it.id == goalId) it.copy(status = "Dropped") else it }
       state.copy(goals = updated, currentScreen = AppScreen.GOALS, snackbarMessage = SnackbarMessage.GoalDropped)
     }
+    remoteWrite { it.setGoalStatus(goalId, "Dropped") }
     navigateBack()
   }
 
@@ -917,6 +991,7 @@ class MyDayViewModel : ViewModel() {
       val updated = state.goals.map { if (it.id == goalId) it.copy(status = "Achieved", aggregatedProgress = 1.0f, aggregatedProgressText = "100%") else it }
       state.copy(goals = updated, currentScreen = AppScreen.GOALS, snackbarMessage = SnackbarMessage.GoalAchieved)
     }
+    remoteWrite { it.setGoalStatus(goalId, "Achieved") }
     navigateBack()
   }
 
