@@ -253,7 +253,8 @@ fun WrapUpSection(
             modifier = Modifier.padding(vertical = 8.dp)
           )
         } else {
-          overdueTasks.forEach { task ->
+          val queueVisible = rememberVisibleCount(overdueTasks.size)
+          overdueTasks.page(queueVisible.intValue).forEach { task ->
             Surface(
               shape = RoundedCornerShape(8.dp),
               color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -336,6 +337,7 @@ fun WrapUpSection(
               }
             }
           }
+          ShowMoreRow(overdueTasks.size - queueVisible.intValue, queueVisible)
         }
       }
     }

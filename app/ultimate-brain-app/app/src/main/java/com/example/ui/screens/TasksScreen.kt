@@ -76,6 +76,9 @@ import com.example.ui.components.BottomNavBar
 import com.example.ui.components.BottomNavDestination
 import com.example.ui.components.QuickAddBottomSheet
 import com.example.ui.components.SearchDialog
+import com.example.ui.components.ShowMoreRow
+import com.example.ui.components.page
+import com.example.ui.components.rememberVisibleCount
 import com.example.ui.theme.entityGoals
 import com.example.ui.theme.entityProjects
 import com.example.ui.theme.errorAccent
@@ -347,6 +350,7 @@ fun TasksScreen(
         val overdueList = uiState.tasks.filter { it.isOverdue && !it.isDone }
       if (overdueList.isNotEmpty()) {
         item {
+          val overdueVisible = rememberVisibleCount(uiState.selectedTasksFilter)
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
               modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
@@ -381,7 +385,7 @@ fun TasksScreen(
               )
             }
 
-            overdueList.forEach { task ->
+            overdueList.page(overdueVisible.intValue).forEach { task ->
               Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
@@ -489,6 +493,7 @@ fun TasksScreen(
                 }
               }
             }
+            ShowMoreRow(overdueList.size - overdueVisible.intValue, overdueVisible)
           }
         }
       }
@@ -496,6 +501,7 @@ fun TasksScreen(
       // SECTION 2: Today
       val todayTasks = uiState.tasks.filter { DateUtils.bucket(it.due) == DateUtils.DueBucket.TODAY && !it.isDone }
       item {
+        val todayVisible = rememberVisibleCount(uiState.selectedTasksFilter)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
@@ -539,20 +545,22 @@ fun TasksScreen(
             modifier = Modifier.fillMaxWidth()
           ) {
             Column {
-              todayTasks.forEachIndexed { index, task ->
+              val shown = todayTasks.page(todayVisible.intValue)
+              shown.forEachIndexed { index, task ->
                 TaskRowItem(
                   task = task,
                   formattedTimer = uiState.formattedTimer,
                   onTaskClick = { viewModel.openTaskDetail(task.id) },
                   onCompleteToggle = { viewModel.toggleTaskCompletion(task.id) }
                 )
-                if (index < todayTasks.lastIndex) {
+                if (index < shown.lastIndex) {
                   HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                     thickness = 1.dp
                   )
                 }
               }
+              ShowMoreRow(todayTasks.size - todayVisible.intValue, todayVisible)
             }
           }
         }
@@ -565,6 +573,7 @@ fun TasksScreen(
       }
       if (upcomingTasks.isNotEmpty()) {
         item {
+          val upcomingVisible = rememberVisibleCount(uiState.selectedTasksFilter)
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
               verticalAlignment = Alignment.CenterVertically,
@@ -596,20 +605,22 @@ fun TasksScreen(
               modifier = Modifier.fillMaxWidth()
             ) {
               Column {
-                upcomingTasks.forEachIndexed { index, task ->
+                val shownUp = upcomingTasks.page(upcomingVisible.intValue)
+                shownUp.forEachIndexed { index, task ->
                   TaskRowItem(
                     task = task,
                     formattedTimer = null,
                     onTaskClick = { viewModel.openTaskDetail(task.id) },
                     onCompleteToggle = { viewModel.toggleTaskCompletion(task.id) }
                   )
-                  if (index < upcomingTasks.lastIndex) {
+                  if (index < shownUp.lastIndex) {
                     HorizontalDivider(
                       color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                       thickness = 1.dp
                     )
                   }
                 }
+                ShowMoreRow(upcomingTasks.size - upcomingVisible.intValue, upcomingVisible)
               }
             }
           }

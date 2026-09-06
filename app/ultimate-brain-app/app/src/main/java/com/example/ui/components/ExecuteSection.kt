@@ -315,7 +315,8 @@ fun ExecuteSection(
         }
       }
 
-      doingTasks.forEach { task ->
+      val doingVisible = rememberVisibleCount(selectedFilter)
+      doingTasks.page(doingVisible.intValue).forEach { task ->
         ExecuteTaskCard(
           task = task,
           isActiveSession = task.isActiveSession,
@@ -324,6 +325,7 @@ fun ExecuteSection(
           onClick = { onTaskClick?.invoke(task.id) }
         )
       }
+      ShowMoreRow(doingTasks.size - doingVisible.intValue, doingVisible)
     }
 
     // Status Bucket: TO DO
@@ -355,7 +357,8 @@ fun ExecuteSection(
         }
       }
 
-      todoTasks.forEach { task ->
+      val todoVisible = rememberVisibleCount(selectedFilter)
+      todoTasks.page(todoVisible.intValue).forEach { task ->
         ExecuteTaskCard(
           task = task,
           isActiveSession = false,
@@ -364,6 +367,7 @@ fun ExecuteSection(
           onClick = { onTaskClick?.invoke(task.id) }
         )
       }
+      ShowMoreRow(todoTasks.size - todoVisible.intValue, todoVisible)
     }
 
     // Status Bucket: DONE (Collapsed Accordion)
@@ -440,7 +444,8 @@ fun ExecuteSection(
             modifier = Modifier.padding(top = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
           ) {
-            doneTasks.forEach { task ->
+            val doneVisible = rememberVisibleCount(selectedFilter)
+            doneTasks.page(doneVisible.intValue).forEach { task ->
               Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -473,6 +478,7 @@ fun ExecuteSection(
                 }
               }
             }
+            ShowMoreRow(doneTasks.size - doneVisible.intValue, doneVisible)
           }
         }
       }
