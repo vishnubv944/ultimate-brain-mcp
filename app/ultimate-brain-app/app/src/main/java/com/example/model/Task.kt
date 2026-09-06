@@ -18,13 +18,6 @@ data class SubTask(
   val isCompleted: Boolean = false
 )
 
-data class AcceptanceCriterion(
-  val id: String,
-  val text: String,
-  val codeHighlight: String? = null,
-  val isChecked: Boolean = false
-)
-
 data class Task(
   val id: String,
   val name: String,
@@ -48,9 +41,6 @@ data class Task(
   val timeBlock: String? = null,
   val taxonomyArea: String? = null,
   val subTasks: List<SubTask> = emptyList(),
-  val implementationNotes: String? = null,
-  val codeSnippet: String? = null,
-  val acceptanceCriteria: List<AcceptanceCriterion> = emptyList()
 )
 
 data class Project(

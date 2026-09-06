@@ -11,7 +11,6 @@ import com.example.data.UbRepository
 import com.example.focus.FocusController
 import com.example.focus.FocusSession
 import com.example.focus.FocusTimerService
-import com.example.model.AcceptanceCriterion
 import com.example.model.DailyRitualPhase
 import com.example.model.GoalModel
 import com.example.model.MilestoneModel
@@ -814,21 +813,6 @@ class MyDayViewModel : ViewModel() {
     }
   }
 
-  fun toggleAcceptanceCriterion(taskId: String, criterionId: String) {
-    _uiState.update { state ->
-      val updated = state.tasks.map { task ->
-        if (task.id == taskId) {
-          val updatedCriteria = task.acceptanceCriteria.map { ac ->
-            if (ac.id == criterionId) ac.copy(isChecked = !ac.isChecked) else ac
-          }
-          task.copy(acceptanceCriteria = updatedCriteria)
-        } else {
-          task
-        }
-      }
-      state.copy(tasks = updated)
-    }
-  }
 
   fun toggleDoneAccordion() {
     _uiState.update { it.copy(isDoneExpanded = !it.isDoneExpanded) }

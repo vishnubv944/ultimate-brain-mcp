@@ -1,6 +1,5 @@
 package com.example.data
 
-import com.example.model.AcceptanceCriterion
 import com.example.model.Priority
 import com.example.model.Project
 import com.example.model.SubTask
@@ -39,12 +38,6 @@ object DummyData {
         SubTask("st-2", "Bump semantic version to v2.0.0", isCompleted = false),
         SubTask("st-3", "Publish changelog artifact", isCompleted = false)
       ),
-      implementationNotes = "Ensure production smoke builds complete in pipeline before invoking tag operations. Tagging pushes immediately to staging mirrors.",
-      codeSnippet = "git tag -a v2.0.0 -m \"Release v2.0.0\"",
-      acceptanceCriteria = listOf(
-        AcceptanceCriterion("ac-1", "Release branch named ", "release/v2.0", isChecked = true),
-        AcceptanceCriterion("ac-2", "Artifact digests cryptographically signed with GPG", null, isChecked = false)
-      )
     ),
     // 2. Today: Write release notes
     Task(
