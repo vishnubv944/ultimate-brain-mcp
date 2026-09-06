@@ -107,3 +107,29 @@ Each step: build + on-device check + commit.
 - **Step 7 — done.** remoteWrite queues failed writes and retries with
   exponential backoff; ScreenScaffold shows a tap-to-retry banner; a
   successful sync drains the queue.
+
+---
+
+## Status: end-to-end parity reached (2026-09-06)
+
+Every one of the 13 databases loads from the live Notion workspace and is
+editable in-app on the shared native kit. Verified on device:
+
+- **Tasks** — every editable property (status, priority, My Day, due date,
+  project, energy, location, smart list, recurrence + interval + weekdays,
+  snooze, wait, focus type, labels, enforce schedule, shopping list,
+  description, sub-tasks, People relation, Assignee people-property via
+  /v1/users), page body markdown, linked notes; Done filter + load-older.
+- **Projects** — status/deadline/goal/review-notes/tags/people, task lists,
+  linked notes, about body.
+- **Goals** — status/deadline/goal-set/area-tag, linked projects, body.
+- **Notes** — type/date/review-date/project/url/tags, page body, favorite.
+- **Milestones** — new detail screen: goal relation + target date + toggle.
+- **Tags** — favorite/type/parent + sub-tags list, linked projects/notes.
+- **Work Sessions** — focus timer + Notion-backed history.
+- **People / Books / Reading Log / Genres / Recipes / Meal Planner** —
+  list + detail + create.
+
+Cross-cutting: runtime schema fetch drives every option list; relation
+chips tap through everywhere; failed writes queue and retry with a
+tap-to-retry banner; global search spans tasks/projects/notes/goals/tags.
