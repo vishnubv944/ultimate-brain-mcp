@@ -51,7 +51,7 @@ class UbRepository(
 
   val isRemote: Boolean get() = client != null
 
-  suspend fun loadWorkspace(): WorkspaceData = withContext(Dispatchers.IO) {
+  suspend fun loadWorkspace(doneLookbackDays: Long = 60): WorkspaceData = withContext(Dispatchers.IO) {
     val c = client ?: return@withContext dummyWorkspace()
 
     // Server-side filters keep the payload sane — the Tasks DB alone has 600+
@@ -60,7 +60,7 @@ class UbRepository(
     // scheduled (has a due date), or closed in the last week. Excludes the
     // undated backlog, which the app never shows.
     val dueCutoff = java.time.LocalDate.now().minusDays(45).toString()
-    val doneCutoff = java.time.LocalDate.now().minusDays(60).toString()
+    val doneCutoff = java.time.LocalDate.now().minusDays(doneLookbackDays).toString()
     val openOrRecentTasks = mapOf<String, Any>(
       "or" to listOf(
         mapOf("property" to "Status", "status" to mapOf("does_not_equal" to "Done")),
@@ -84,7 +84,7 @@ class UbRepository(
       }
 
     val (taskPages, projectPages, notePages, goalPages, tagPages, milestonePages) = coroutineScope {
-      val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = 8) }
+      val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = if (doneLookbackDays > 90) 20 else 8) }
       val p = async { q(NotionConfig.projectsDsId, filter = notArchivedProjects) }
       val n = async { q(NotionConfig.notesDsId, sorts = notesByDate, maxPages = 2) }
       val g = async { q(NotionConfig.goalsDsId) }
@@ -448,6 +448,16 @@ class UbRepository(
     val c = client ?: return
     val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
     c.call { it.updatePage(taskId, mapOf("properties" to mapOf(prop to v))) }
+  }
+
+  /** Set a relation property (list of page ids) on a task. */
+  suspend fun setTaskRelation(taskId: String, prop: String, ids: List<String>) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(taskId, mapOf("properties" to mapOf(
+        prop to mapOf("relation" to ids.map { i -> mapOf("id" to i) }),
+      )))
+    }
   }
 
   /** Set a multi_select property on a task. */

@@ -121,6 +121,18 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         }
       }
 
+      if (filter == com.example.viewmodel.TasksFilter.DONE && !uiState.olderCompletedLoaded) {
+        item {
+          androidx.compose.material3.TextButton(
+            onClick = { viewModel.loadOlderCompleted() },
+            enabled = !uiState.loadingOlder,
+            modifier = Modifier.padding(horizontal = TodayPad),
+          ) {
+            androidx.compose.material3.Text(if (uiState.loadingOlder) "Loading…" else "Load older completed tasks")
+          }
+        }
+      }
+
       item { Spacer(Modifier.height(96.dp)) }
     }
   }

@@ -213,6 +213,28 @@ fun TaskDetailScreen(
         }
       }
 
+      if (uiState.people.isNotEmpty()) {
+        Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          uiState.people.forEach { person ->
+            FilterChip(
+              selected = person.id in task.personIds,
+              onClick = { viewModel.toggleTaskPerson(task.id, person.id) },
+              label = { Text(person.name) },
+            )
+          }
+        }
+      }
+      if (task.noteIds.isNotEmpty()) {
+        SectionHeader("Linked notes", task.noteIds.size)
+        task.noteIds.forEach { nid ->
+          val n = uiState.notes.firstOrNull { it.id == nid }
+          androidx.compose.material3.TextButton(onClick = { viewModel.openNoteDetail(nid) }) {
+            Text((n?.title ?: "Open note") + "  →")
+          }
+        }
+      }
+
       Row(verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.Checkbox(checked = task.enforceSchedule, onCheckedChange = { viewModel.setTaskEnforceSchedule(task.id, it) })
         Text("Enforce schedule", style = MaterialTheme.typography.bodyMedium)

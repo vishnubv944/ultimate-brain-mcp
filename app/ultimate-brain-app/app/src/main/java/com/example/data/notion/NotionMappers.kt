@@ -80,6 +80,8 @@ object NotionMappers {
       processImmersive = p.prop("P/I", "P / I")?.selectName(),
       enforceSchedule = p.prop("Enforce Schedule")?.isChecked() == true,
       shoppingList = p.prop("Shopping List")?.isChecked() == true,
+      personIds = p.prop("People").rel(),
+      noteIds = p.prop("Notes").rel(),
     )
   }
 

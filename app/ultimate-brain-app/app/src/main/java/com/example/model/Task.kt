@@ -55,6 +55,8 @@ data class Task(
   val processImmersive: String? = null,       // Process | Immersive
   val enforceSchedule: Boolean = false,
   val shoppingList: Boolean = false,
+  val personIds: List<String> = emptyList(),
+  val noteIds: List<String> = emptyList(),
 )
 
 data class Project(

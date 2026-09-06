@@ -266,6 +266,8 @@ data class MyDayUiState(
   val isSyncing: Boolean = false,
   val syncError: String? = null,
   val pendingWriteCount: Int = 0,
+  val loadingOlder: Boolean = false,
+  val olderCompletedLoaded: Boolean = false,
 ) {
   val selectedTask: Task?
     get() = tasks.find { it.id == selectedTaskId } ?: tasks.firstOrNull()
@@ -576,6 +578,23 @@ class MyDayViewModel : ViewModel() {
   val selectedRecipe get() = uiState.value.recipes.firstOrNull { it.id == uiState.value.selectedRecipeId }
 
   /** Pull the full workspace from Notion and replace the local state. */
+  fun loadOlderCompleted() {
+    if (!repo.isRemote || _uiState.value.loadingOlder) return
+    _uiState.update { it.copy(loadingOlder = true) }
+    viewModelScope.launch {
+      try {
+        val w = repo.loadWorkspace(doneLookbackDays = 365)
+        _uiState.update { st ->
+          val byId = w.tasks.associateBy { it.id }
+          val merged = (st.tasks.associateBy { it.id } + byId).values.toList()
+          st.copy(tasks = merged, loadingOlder = false, olderCompletedLoaded = true)
+        }
+      } catch (_: Exception) {
+        _uiState.update { it.copy(loadingOlder = false) }
+      }
+    }
+  }
+
   fun refreshFromNotion() {
     if (!repo.isRemote) return
     _uiState.update { it.copy(isRemote = true, isSyncing = true, syncError = null) }
@@ -990,6 +1009,13 @@ class MyDayViewModel : ViewModel() {
   fun setTaskShoppingList(taskId: String, value: Boolean) {
     patchTask(taskId) { it.copy(shoppingList = value) }
     remoteWrite { it.setTaskCheckbox(taskId, "Shopping List", value) }
+  }
+
+  fun toggleTaskPerson(taskId: String, personId: String) {
+    val cur = _uiState.value.tasks.find { it.id == taskId }?.personIds ?: emptyList()
+    val next = if (personId in cur) cur - personId else cur + personId
+    patchTask(taskId) { it.copy(personIds = next) }
+    remoteWrite { it.setTaskRelation(taskId, "People", next) }
   }
 
   fun toggleTaskRecurDay(taskId: String, day: String) {
