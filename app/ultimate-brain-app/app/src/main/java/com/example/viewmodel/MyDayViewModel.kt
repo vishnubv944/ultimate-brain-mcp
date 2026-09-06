@@ -1,5 +1,6 @@
 package com.example.viewmodel
 
+import android.content.Context
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,9 @@ import com.example.R
 import com.example.data.DateUtils
 import com.example.data.DummyData
 import com.example.data.UbRepository
+import com.example.focus.FocusController
+import com.example.focus.FocusSession
+import com.example.focus.FocusTimerService
 import com.example.model.AcceptanceCriterion
 import com.example.model.DailyRitualPhase
 import com.example.model.GoalModel
@@ -184,8 +188,11 @@ data class MyDayUiState(
   val isQuickAddOpen: Boolean = false,
   val isSearchOpen: Boolean = false,
   val searchQuery: String = "",
-  val eveningReviewStep: Int = 1, // 1: Clear Day, 2: Calendar, 3: Tomorrow
+  val eveningReviewStep: Int = 1, // legacy — the wizard was removed
   val snackbarMessage: SnackbarMessage? = null,
+
+  // Total focus time logged today (seconds), for the Wrap-up scorecard.
+  val focusedSecondsToday: Long = 0L,
 
   // Projects State
   val projects: List<ProjectModel> = DummyData.projectsList,
@@ -361,6 +368,64 @@ data class MyDayUiState(
           it.labels.any { l -> l.contains(searchQuery, ignoreCase = true) }
       }
     }
+
+  // --- Plan phase -----------------------------------------------------------
+
+  private val activeProjectIds: Set<String>
+    get() = projects.filter { !it.isArchived && it.status != "Done" }.map { it.id }.toSet()
+
+  fun planFilterMatches(task: Task, filter: PlanFilter): Boolean {
+    if (task.isDone) return false
+    val today = java.time.LocalDate.now()
+    val date = DateUtils.parseIsoDate(task.due)
+    return when (filter) {
+      PlanFilter.TODAY -> date == today
+      PlanFilter.WEEK -> date != null && !date.isBefore(today) && !date.isAfter(today.plusDays(7))
+      PlanFilter.OVERDUE -> date != null && date.isBefore(today)
+      PlanFilter.RECURRING -> task.isRecurring
+      PlanFilter.INBOX -> task.projectId == null && task.due == null
+      PlanFilter.ACTIVE_PROJECTS -> task.projectId != null && task.projectId in activeProjectIds
+    }
+  }
+
+  /** Tasks shown in Plan's browse list for the selected filter. */
+  val planBrowseTasks: List<Task>
+    get() = tasks.filter { planFilterMatches(it, selectedPlanFilter) }
+      .sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
+
+  fun planFilterCount(filter: PlanFilter): Int = tasks.count { planFilterMatches(it, filter) }
+
+  /** The shortlist you've committed to today. */
+  val onTodayTasks: List<Task>
+    get() = tasks.filter { it.isMyDay && !it.isDone }
+
+  /** Auto shortlist candidates: overdue, due today, or flagged — not yet picked. */
+  val planSuggestions: List<Task>
+    get() {
+      val today = java.time.LocalDate.now()
+      return tasks.filter { t ->
+        if (t.isDone || t.isMyDay) return@filter false
+        val d = DateUtils.parseIsoDate(t.due)
+        (d != null && !d.isAfter(today)) || t.priority == com.example.model.Priority.HIGH
+      }.sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }))
+        .take(8)
+    }
+
+  // --- Execute phase -------------------------------------------------------
+
+  /** My Day tasks still open, ordered for "do this next": Doing, then by due, then priority. */
+  val upNextTasks: List<Task>
+    get() = tasks.filter { it.isMyDay && !it.isDone }
+      .sortedWith(
+        compareByDescending<Task> { it.status == TaskStatus.DOING }
+          .thenBy { DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }
+          .thenByDescending { it.priority == com.example.model.Priority.HIGH }
+      )
+
+  // --- Wrap up phase -----------------------------------------------------
+
+  val openTodayTasks: List<Task>
+    get() = tasks.filter { it.isMyDay && !it.isDone }
 }
 
 class MyDayViewModel : ViewModel() {
@@ -502,6 +567,68 @@ class MyDayViewModel : ViewModel() {
 
   fun toggleTimer() {
     _uiState.update { it.copy(isTimerRunning = !it.isTimerRunning) }
+  }
+
+  // --- Focus timer (foreground service + Notion Work Session) ---------------
+
+  /** The single active focus session, or null. Observed by the Execute UI. */
+  val focusSession: StateFlow<FocusSession?> = FocusController.session
+
+  fun startFocus(context: Context, task: Task) {
+    FocusController.start(task.id, task.name, task.projectName)
+    FocusTimerService.start(context)
+    // Move the task into Doing so Execute reflects reality.
+    if (task.status != TaskStatus.DOING) {
+      _uiState.update { s ->
+        s.copy(tasks = s.tasks.map { if (it.id == task.id) it.copy(status = TaskStatus.DOING) else it })
+      }
+      remoteWrite { it.setTaskStatus(task.id, TaskStatus.DOING) }
+    }
+  }
+
+  fun pauseFocus(context: Context) {
+    FocusController.pause()
+    FocusTimerService.send(context, FocusTimerService.ACTION_PAUSE)
+  }
+
+  fun resumeFocus(context: Context) {
+    FocusController.resume()
+    FocusTimerService.send(context, FocusTimerService.ACTION_RESUME)
+  }
+
+  fun stopFocus(context: Context) {
+    val session = FocusController.stop()
+    FocusTimerService.stop(context)
+    if (session == null) return
+    val elapsedSec = session.elapsedMs() / 1000
+    _uiState.update { it.copy(focusedSecondsToday = it.focusedSecondsToday + elapsedSec) }
+    if (elapsedSec >= 60) {
+      val endIso = java.time.Instant.now().toString()
+      remoteWrite { it.createWorkSession(session.taskId, session.taskName, session.startIso, endIso) }
+    }
+    _uiState.update { it.copy(snackbarMessage = SnackbarMessage.FocusSessionEnded) }
+  }
+
+  // --- Wrap up -----------------------------------------------------------
+
+  /** Push every still-open My-Day task to tomorrow and drop it from today. */
+  fun moveAllOpenToTomorrow() {
+    val tomorrow = java.time.LocalDate.now().plusDays(1)
+    val iso = tomorrow.toString()
+    val targets = _uiState.value.tasks.filter { it.isMyDay && !it.isDone }
+    if (targets.isEmpty()) {
+      _uiState.update { it.copy(snackbarMessage = SnackbarMessage.MyDayAlreadyEmpty) }
+      return
+    }
+    _uiState.update { s ->
+      s.copy(
+        tasks = s.tasks.map {
+          if (it.isMyDay && !it.isDone) it.copy(isMyDay = false, due = iso, dueDisplay = "Tomorrow", isOverdue = false) else it
+        },
+        snackbarMessage = SnackbarMessage.AllOverdueMoved,
+      )
+    }
+    targets.forEach { t -> remoteWrite { repo -> repo.setTaskDue(t.id, iso); repo.setTaskMyDay(t.id, false) } }
   }
 
   fun endLiveSession(taskId: String) {
@@ -904,6 +1031,36 @@ class MyDayViewModel : ViewModel() {
         currentScreen = AppScreen.NOTE_EDITOR
       )
     }
+    emitNav(AppScreen.NOTE_EDITOR)
+  }
+
+  /**
+   * Open today's journal entry from Wrap up. Reuses an existing Journal note
+   * dated today if there is one, otherwise starts a new one in the editor.
+   * (Note persistence to Notion is not wired yet — tracked separately.)
+   */
+  fun openTodayJournal() {
+    val existing = _uiState.value.notes.firstOrNull {
+      it.type.equals("Journal", ignoreCase = true) && (it.date == "Today" || it.date == java.time.LocalDate.now().toString())
+    }
+    if (existing != null) {
+      openNoteEditor(existing.id)
+      return
+    }
+    val newId = "n-journal-${System.currentTimeMillis()}"
+    val heading = java.time.LocalDate.now()
+      .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d"))
+    val newNote = NoteModel(
+      id = newId,
+      title = "Journal — $heading",
+      type = "Journal",
+      date = "Today",
+      excerpt = "",
+      rawMarkdown = "# $heading\n\n",
+      projectName = null,
+      isFavorite = false,
+    )
+    _uiState.update { it.copy(notes = listOf(newNote) + it.notes, selectedNoteId = newId, currentScreen = AppScreen.NOTE_EDITOR) }
     emitNav(AppScreen.NOTE_EDITOR)
   }
 

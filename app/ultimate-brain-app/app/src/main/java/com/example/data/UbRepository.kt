@@ -130,6 +130,31 @@ class UbRepository(
     c.call { it.updatePage(goalId, mapOf("properties" to mapOf("Status" to mapOf("status" to mapOf("name" to status))))) }
   }
 
+  /** Set a task's Due date (ISO yyyy-MM-dd or full datetime). */
+  suspend fun setTaskDue(taskId: String, iso: String) {
+    val c = client ?: return
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Due" to mapOf("date" to mapOf("start" to iso))))) }
+  }
+
+  /**
+   * Log a completed focus session as a Work Session row (Start / End / Tasks),
+   * mirroring the Python server's format_work_session. No-op if the Work
+   * Sessions data source isn't configured.
+   */
+  suspend fun createWorkSession(taskId: String, taskName: String, startIso: String, endIso: String): String? {
+    val c = client ?: return null
+    if (NotionConfig.workSessionsDsId.isBlank()) return null
+    val props = mapOf<String, Any>(
+      "Name" to mapOf("title" to listOf(mapOf("text" to mapOf("content" to "Focus · $taskName")))),
+      "Start" to mapOf("date" to mapOf("start" to startIso)),
+      "End" to mapOf("date" to mapOf("start" to endIso)),
+      "Tasks" to mapOf("relation" to listOf(mapOf("id" to taskId))),
+    )
+    return c.call {
+      it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.workSessionsDsId), "properties" to props))
+    }.id
+  }
+
   /** Create a task; returns the new page id, or null when running on dummy data. */
   suspend fun createTask(
     name: String,

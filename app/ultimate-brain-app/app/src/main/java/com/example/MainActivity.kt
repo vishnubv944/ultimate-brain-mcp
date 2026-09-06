@@ -1,10 +1,15 @@
 package com.example
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,9 +47,22 @@ import com.example.viewmodel.isTopLevelTab
 class MainActivity : ComponentActivity() {
   private val viewModel: MyDayViewModel by viewModels()
 
+  private val notifPermission =
+    registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    // Focus-timer notification permission (Android 13+). Asked once up front so
+    // the ongoing timer notification can actually show.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+      ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+      PackageManager.PERMISSION_GRANTED
+    ) {
+      notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     setContent {
       val systemInDark = isSystemInDarkTheme()
       var isDarkTheme by remember { mutableStateOf(systemInDark) }
