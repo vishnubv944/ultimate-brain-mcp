@@ -1125,40 +1125,50 @@ class MyDayViewModel : ViewModel() {
   }
 
   fun toggleSubTask(taskId: String, subTaskId: String) {
+    var nowDone = false
     _uiState.update { state ->
       val updated = state.tasks.map { task ->
         if (task.id == taskId) {
-          val updatedSubTasks = task.subTasks.map { st ->
-            if (st.id == subTaskId) st.copy(isCompleted = !st.isCompleted) else st
-          }
-          task.copy(subTasks = updatedSubTasks)
-        } else {
-          task
-        }
+          task.copy(subTasks = task.subTasks.map { st ->
+            if (st.id == subTaskId) { nowDone = !st.isCompleted; st.copy(isCompleted = !st.isCompleted) } else st
+          })
+        } else task
       }
       state.copy(tasks = updated)
+    }
+    // Sub-tasks are real child task pages in Notion — persist the toggle.
+    if (!subTaskId.startsWith("st-")) {
+      remoteWrite { it.setTaskStatus(subTaskId, if (nowDone) TaskStatus.DONE else TaskStatus.TODO) }
     }
   }
 
   fun addSubTask(taskId: String, name: String) {
     if (name.isBlank()) return
+    val tempId = "st-${UUID.randomUUID().toString().take(6)}"
     _uiState.update { state ->
       val updated = state.tasks.map { task ->
         if (task.id == taskId) {
-          val newSub = SubTask(
-            id = "st-${UUID.randomUUID().toString().take(6)}",
-            name = name.trim(),
-            isCompleted = false
-          )
           task.copy(
-            subTasks = task.subTasks + newSub,
-            subTasksCount = task.subTasks.size + 1
+            subTasks = task.subTasks + SubTask(id = tempId, name = name.trim(), isCompleted = false),
+            subTasksCount = task.subTasks.size + 1,
           )
-        } else {
-          task
-        }
+        } else task
       }
       state.copy(tasks = updated, snackbarMessage = SnackbarMessage.SubTaskAdded)
+    }
+    if (repo.isRemote) {
+      viewModelScope.launch {
+        try {
+          val realId = repo.createTask(name.trim(), null, null, myDay = false, parentTaskId = taskId)
+          if (realId != null) _uiState.update { s ->
+            s.copy(tasks = s.tasks.map { t ->
+              if (t.id == taskId) t.copy(subTasks = t.subTasks.map { if (it.id == tempId) it.copy(id = realId) else it }) else t
+            })
+          }
+        } catch (e: Exception) {
+          _uiState.update { it.copy(syncError = e.message ?: "Could not save sub-task") }
+        }
+      }
     }
   }
 
@@ -1202,42 +1212,30 @@ class MyDayViewModel : ViewModel() {
   }
 
   fun postponeOverdueTask(taskId: String) {
+    val iso = java.time.LocalDate.now().plusDays(1).toString()
     _uiState.update { state ->
-      val updated = state.tasks.map { task ->
-        if (task.id == taskId) {
-          task.copy(
-            dueDisplay = "Tomorrow",
-            isOverdue = false,
-            isMyDay = false
-          )
-        } else {
-          task
-        }
-      }
       state.copy(
-        tasks = updated,
-        snackbarMessage = SnackbarMessage.TaskPostponed
+        tasks = state.tasks.map { task ->
+          if (task.id == taskId) task.copy(due = iso, dueDisplay = "Tomorrow", isOverdue = false, isMyDay = false) else task
+        },
+        snackbarMessage = SnackbarMessage.TaskPostponed,
       )
     }
+    remoteWrite { it.setTaskDue(taskId, iso); it.setTaskMyDay(taskId, false) }
   }
 
   fun rescheduleAllOverdue() {
+    val iso = java.time.LocalDate.now().plusDays(1).toString()
+    val ids = _uiState.value.tasks.filter { it.isOverdue }.map { it.id }
     _uiState.update { state ->
-      val updated = state.tasks.map { task ->
-        if (task.isOverdue) {
-          task.copy(
-            dueDisplay = "Tomorrow",
-            isOverdue = false
-          )
-        } else {
-          task
-        }
-      }
       state.copy(
-        tasks = updated,
-        snackbarMessage = SnackbarMessage.AllOverdueMoved
+        tasks = state.tasks.map { task ->
+          if (task.isOverdue) task.copy(due = iso, dueDisplay = "Tomorrow", isOverdue = false) else task
+        },
+        snackbarMessage = SnackbarMessage.AllOverdueMoved,
       )
     }
+    ids.forEach { id -> remoteWrite { it.setTaskDue(id, iso) } }
   }
 
   fun addNewTask(

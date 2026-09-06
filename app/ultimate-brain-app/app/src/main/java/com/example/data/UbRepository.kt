@@ -546,6 +546,7 @@ class UbRepository(
     myDay: Boolean,
     dueIso: String? = null,
     labels: List<String> = emptyList(),
+    parentTaskId: String? = null,
   ): String? {
     val c = client ?: return null
     val props = buildMap<String, Any> {
@@ -557,6 +558,7 @@ class UbRepository(
         put("Priority", mapOf("status" to mapOf("name" to pn)))
       }
       projectId?.let { put("Project", mapOf("relation" to listOf(mapOf("id" to it)))) }
+      parentTaskId?.let { put("Parent Task", mapOf("relation" to listOf(mapOf("id" to it)))) }
       dueIso?.let { put("Due", mapOf("date" to mapOf("start" to it))) }
       if (labels.isNotEmpty()) put("Labels", mapOf("multi_select" to labels.map { mapOf("name" to it) }))
     }
