@@ -1,0 +1,68 @@
+package com.example.model
+
+enum class TaskStatus {
+  TODO,
+  DOING,
+  DONE
+}
+
+enum class Priority {
+  HIGH,
+  MEDIUM,
+  LOW
+}
+
+data class SubTask(
+  val id: String,
+  val name: String,
+  val isCompleted: Boolean = false
+)
+
+data class AcceptanceCriterion(
+  val id: String,
+  val text: String,
+  val codeHighlight: String? = null,
+  val isChecked: Boolean = false
+)
+
+data class Task(
+  val id: String,
+  val name: String,
+  val status: TaskStatus = TaskStatus.TODO,
+  val priority: Priority? = null,
+  val due: String? = null,
+  val dueDisplay: String = "Today",
+  val isMyDay: Boolean = true,
+  val projectId: String? = null,
+  val projectName: String? = null,
+  val labels: List<String> = emptyList(),
+  val isRecurring: Boolean = false,
+  val recurrenceText: String? = null,
+  val timeTracked: String? = null,
+  val isActiveSession: Boolean = false,
+  val isOverdue: Boolean = false,
+  val isDone: Boolean = (status == TaskStatus.DONE),
+  val completionDate: String? = null,
+  val parentTaskId: String? = null,
+  val subTasksCount: Int = 0,
+  val timeBlock: String? = null,
+  val taxonomyArea: String? = null,
+  val subTasks: List<SubTask> = emptyList(),
+  val implementationNotes: String? = null,
+  val codeSnippet: String? = null,
+  val acceptanceCriteria: List<AcceptanceCriterion> = emptyList()
+)
+
+data class Project(
+  val id: String,
+  val name: String,
+  val status: String = "Doing",
+  val progress: String = "0%"
+)
+
+enum class DailyRitualPhase(val label: String, val stepNumber: Int) {
+  PLAN("1. Plan", 1),
+  EXECUTE("2. Execute", 2),
+  WRAP_UP("3. Wrap Up", 3)
+}
+
