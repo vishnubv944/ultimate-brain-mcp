@@ -77,6 +77,20 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      com.example.ui.components.SectionHeader("Details")
+      com.example.ui.components.OptionRow(
+        "Type", note.type,
+        uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Voice Note", "Daily")),
+        { it?.let { t -> viewModel.setNoteType(note.id, t) } },
+        allowClear = false,
+      )
+      com.example.ui.components.DateFieldRow("Date", note.dateIso, { viewModel.setNoteDate(note.id, it) })
+      com.example.ui.components.OptionRow(
+        "Project", note.projectName,
+        uiState.projects.map { it.name },
+        { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+      )
+
       Spacer(Modifier.height(16.dp))
 
       when {

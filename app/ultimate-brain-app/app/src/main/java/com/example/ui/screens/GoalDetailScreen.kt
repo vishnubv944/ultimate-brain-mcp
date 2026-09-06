@@ -80,6 +80,18 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           ),
           Modifier.padding(horizontal = TodayPad),
         )
+        SectionHeader("Details", modifier = Modifier.padding(horizontal = TodayPad))
+        com.example.ui.components.OptionRow(
+          "Status", goal.status,
+          uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
+          { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
+          Modifier.padding(horizontal = TodayPad), allowClear = false,
+        )
+        com.example.ui.components.DateFieldRow(
+          "Deadline", goal.deadlineIso,
+          { viewModel.setGoalDeadline(goal.id, it) },
+          Modifier.padding(horizontal = TodayPad),
+        )
       }
 
       item { SectionHeader("Projects", goal.linkedProjects.size, Modifier.padding(horizontal = TodayPad)) }

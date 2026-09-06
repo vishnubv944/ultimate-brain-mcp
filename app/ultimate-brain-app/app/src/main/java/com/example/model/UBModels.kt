@@ -4,8 +4,9 @@ package com.example.model
 data class ProjectModel(
   val id: String,
   val name: String,
-  val status: String = "Doing", // Not Started, Doing, Ongoing, Done
+  val status: String = "Doing", // Planned, On Hold, Doing, Ongoing, Done
   val deadline: String = "Sep 30, 2026",
+  val deadlineIso: String? = null,
   val progress: Float = 0.62f,
   val progressText: String = "62%",
   val totalTasks: Int = 12,
@@ -20,26 +21,16 @@ data class ProjectModel(
 )
 
 // --- Notes ---
-data class NoteActionItem(
-  val id: String,
-  val text: String,
-  val isDone: Boolean = false
-)
-
 data class NoteModel(
   val id: String,
   val title: String,
   val type: String = "Meeting", // Meeting, Reference, Idea, Journal, Book, Recipe, etc.
   val date: String = "Sep 1, 2026",
+  val dateIso: String? = null,
   val projectName: String? = "Q3 launch — v2.0",
   val tags: List<String> = listOf("#Work (Area)"),
   val isFavorite: Boolean = false,
   val excerpt: String = "",
-  val attendees: List<String> = emptyList(),
-  val agenda: List<String> = emptyList(),
-  val noteBullets: List<Pair<String, String>> = emptyList(), // Pair of action tag ("Action:"), note text
-  val decisions: String? = null,
-  val actionItems: List<NoteActionItem> = emptyList(),
   val rawMarkdown: String = ""
 )
 
@@ -60,6 +51,7 @@ data class GoalModel(
   val status: String = "Active", // Dream, Active, Achieved
   val isArchived: Boolean = false,
   val deadline: String = "Dec 31, 2026",
+  val deadlineIso: String? = null,
   val daysRemaining: Int = 116,
   val tagArea: String = "Work (Area)",
   val aggregatedProgress: Float = 0.51f,

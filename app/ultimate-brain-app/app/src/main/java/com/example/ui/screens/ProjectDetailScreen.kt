@@ -88,6 +88,24 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
           ),
           Modifier.padding(horizontal = TodayPad),
         )
+        SectionHeader("Details", modifier = Modifier.padding(horizontal = TodayPad))
+        com.example.ui.components.OptionRow(
+          "Status", project.status,
+          uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
+          { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
+          Modifier.padding(horizontal = TodayPad), allowClear = false,
+        )
+        com.example.ui.components.DateFieldRow(
+          "Deadline", project.deadlineIso,
+          { viewModel.setProjectDeadline(project.id, it) },
+          Modifier.padding(horizontal = TodayPad),
+        )
+        com.example.ui.components.OptionRow(
+          "Goal", project.goalName,
+          uiState.goals.map { it.name },
+          { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
+          Modifier.padding(horizontal = TodayPad),
+        )
       }
 
       section("Open tasks", open, viewModel)

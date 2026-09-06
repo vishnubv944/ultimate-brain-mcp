@@ -254,18 +254,6 @@ object DummyData {
       tags = listOf("#Work (Area)"),
       isFavorite = true,
       excerpt = "v2.0 is on track for Sep 30. Action: cut release branch by Sep 6. Staging verification underway with QA team...",
-      attendees = listOf("Priya", "Anil", "Maya", "Devraj", "Tomás"),
-      agenda = listOf("Q3 progress review", "v2.0 release readiness", "Hiring update"),
-      noteBullets = listOf(
-        Pair("Action:", "cut release branch by Sep 6."),
-        Pair("Action:", "schedule onsites."),
-        Pair("Action:", "Tomás to review by Sep 8.")
-      ),
-      decisions = "Push v2.0 to Oct 7 if auth migration slips beyond Sep 30.",
-      actionItems = listOf(
-        com.example.model.NoteActionItem("ai-1", "Schedule follow-up sync with QA lead", false),
-        com.example.model.NoteActionItem("ai-2", "Send meeting summary to Slack #eng-general", true)
-      ),
       rawMarkdown = """## Attendees
 - Priya, Anil, Maya, Devraj, Tomás
 

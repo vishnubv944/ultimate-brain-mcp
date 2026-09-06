@@ -230,6 +230,33 @@ class UbRepository(
     c.call { it.updatePage(projectId, mapOf("properties" to props)) }
   }
 
+  suspend fun setProjectStatus(id: String, status: String) = setPageStatus(id, "Status", status)
+  suspend fun setProjectDeadline(id: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Target Deadline" to v))) }
+  }
+  suspend fun setProjectGoal(id: String, goalId: String?) {
+    val c = client ?: return
+    val rel = if (goalId == null) emptyList<Any>() else listOf(mapOf("id" to goalId))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Goal" to mapOf("relation" to rel)))) }
+  }
+  suspend fun setGoalDeadline(id: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Target Deadline" to v))) }
+  }
+  suspend fun setNoteDate(id: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Note Date" to v))) }
+  }
+  suspend fun setNoteProject(id: String, projectId: String?) {
+    val c = client ?: return
+    val rel = if (projectId == null) emptyList<Any>() else listOf(mapOf("id" to projectId))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Project" to mapOf("relation" to rel)))) }
+  }
+
   suspend fun createProject(name: String): String? {
     val c = client ?: return null
     val props = mapOf<String, Any>(

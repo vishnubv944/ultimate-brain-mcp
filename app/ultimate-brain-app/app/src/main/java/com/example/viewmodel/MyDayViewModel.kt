@@ -14,7 +14,6 @@ import com.example.focus.FocusTimerService
 import com.example.model.DailyRitualPhase
 import com.example.model.GoalModel
 import com.example.model.MilestoneModel
-import com.example.model.NoteActionItem
 import com.example.model.NoteModel
 import com.example.model.Priority
 import com.example.model.ProjectModel
@@ -906,6 +905,51 @@ class MyDayViewModel : ViewModel() {
     remoteWrite { it.setTaskLabels(taskId, labels) }
   }
 
+  private fun patchProject(id: String, f: (ProjectModel) -> ProjectModel) {
+    _uiState.update { s -> s.copy(projects = s.projects.map { if (it.id == id) f(it) else it }) }
+  }
+  private fun patchGoal(id: String, f: (GoalModel) -> GoalModel) {
+    _uiState.update { s -> s.copy(goals = s.goals.map { if (it.id == id) f(it) else it }) }
+  }
+  private fun patchNote(id: String, f: (NoteModel) -> NoteModel) {
+    _uiState.update { s -> s.copy(notes = s.notes.map { if (it.id == id) f(it) else it }) }
+  }
+
+  fun setProjectStatus(id: String, status: String) {
+    patchProject(id) { it.copy(status = status) }
+    remoteWrite { it.setProjectStatus(id, status) }
+  }
+  fun setProjectDeadline(id: String, iso: String?) {
+    patchProject(id) { it.copy(deadline = DateUtils.displayLabel(iso).ifBlank { "—" }, deadlineIso = iso) }
+    remoteWrite { it.setProjectDeadline(id, iso) }
+  }
+  fun setProjectGoalRelation(id: String, goalId: String?) {
+    val name = goalId?.let { g -> _uiState.value.goals.find { it.id == g }?.name }
+    patchProject(id) { it.copy(goalName = name) }
+    remoteWrite { it.setProjectGoal(id, goalId) }
+  }
+  fun setGoalDeadline(id: String, iso: String?) {
+    patchGoal(id) { it.copy(deadline = DateUtils.displayLabel(iso).ifBlank { "—" }, deadlineIso = iso) }
+    remoteWrite { it.setGoalDeadline(id, iso) }
+  }
+  fun setGoalStatusValue(id: String, status: String) {
+    patchGoal(id) { it.copy(status = status) }
+    remoteWrite { it.setGoalStatus(id, status) }
+  }
+  fun setNoteType(id: String, type: String) {
+    patchNote(id) { it.copy(type = type) }
+    remoteWrite { it.updateNoteMeta(id, _uiState.value.notes.first { it.id == id }.title, type) }
+  }
+  fun setNoteDate(id: String, iso: String?) {
+    patchNote(id) { it.copy(date = DateUtils.displayLabel(iso).ifBlank { "—" }, dateIso = iso) }
+    remoteWrite { it.setNoteDate(id, iso) }
+  }
+  fun setNoteProjectRelation(id: String, projectId: String?) {
+    val name = projectId?.let { p -> _uiState.value.projects.find { it.id == p }?.name }
+    patchNote(id) { it.copy(projectName = name) }
+    remoteWrite { it.setNoteProject(id, projectId) }
+  }
+
   fun toggleSubTask(taskId: String, subTaskId: String) {
     _uiState.update { state ->
       val updated = state.tasks.map { task ->
@@ -1294,20 +1338,6 @@ class MyDayViewModel : ViewModel() {
     }
     val fav = _uiState.value.notes.firstOrNull { it.id == noteId }?.isFavorite == true
     remoteWrite { it.setNoteFavorite(noteId, fav) }
-  }
-
-  fun toggleNoteActionItem(noteId: String, actionId: String) {
-    _uiState.update { state ->
-      val updated = state.notes.map { note ->
-        if (note.id == noteId) {
-          val updatedItems = note.actionItems.map { if (it.id == actionId) it.copy(isDone = !it.isDone) else it }
-          note.copy(actionItems = updatedItems)
-        } else {
-          note
-        }
-      }
-      state.copy(notes = updated)
-    }
   }
 
   fun saveNote(updatedNote: NoteModel) {
