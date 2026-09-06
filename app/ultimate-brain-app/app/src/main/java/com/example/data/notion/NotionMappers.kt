@@ -73,8 +73,13 @@ object NotionMappers {
       smartList = p.prop("Smart List")?.selectName(),
       dueEndIso = dueEnd,
       snoozeIso = p.prop("Snooze")?.dateStart(),
+      waitIso = p.prop("Wait Date")?.dateStart(),
       recurUnit = recurUnit,
       recurInterval = recurInterval,
+      recurDays = p.prop("Days")?.multiNames().orEmpty(),
+      processImmersive = p.prop("P/I", "P / I")?.selectName(),
+      enforceSchedule = p.prop("Enforce Schedule")?.isChecked() == true,
+      shoppingList = p.prop("Shopping List")?.isChecked() == true,
     )
   }
 

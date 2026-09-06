@@ -922,6 +922,38 @@ class MyDayViewModel : ViewModel() {
     remoteWrite { it.setTaskRecurrence(taskId, unit, interval) }
   }
 
+  fun setTaskSnooze(taskId: String, iso: String?) {
+    patchTask(taskId) { it.copy(snoozeIso = iso) }
+    remoteWrite { it.setTaskDate(taskId, "Snooze", iso) }
+  }
+
+  fun setTaskWaitDate(taskId: String, iso: String?) {
+    patchTask(taskId) { it.copy(waitIso = iso) }
+    remoteWrite { it.setTaskDate(taskId, "Wait Date", iso) }
+  }
+
+  fun setTaskProcessImmersive(taskId: String, value: String?) {
+    patchTask(taskId) { it.copy(processImmersive = value) }
+    remoteWrite { it.setTaskSelect(taskId, "P/I", value) }
+  }
+
+  fun setTaskEnforceSchedule(taskId: String, value: Boolean) {
+    patchTask(taskId) { it.copy(enforceSchedule = value) }
+    remoteWrite { it.setTaskCheckbox(taskId, "Enforce Schedule", value) }
+  }
+
+  fun setTaskShoppingList(taskId: String, value: Boolean) {
+    patchTask(taskId) { it.copy(shoppingList = value) }
+    remoteWrite { it.setTaskCheckbox(taskId, "Shopping List", value) }
+  }
+
+  fun toggleTaskRecurDay(taskId: String, day: String) {
+    val current = _uiState.value.tasks.find { it.id == taskId }?.recurDays ?: emptyList()
+    val next = if (day in current) current - day else current + day
+    patchTask(taskId) { it.copy(recurDays = next) }
+    remoteWrite { it.setTaskMulti(taskId, "Days", next) }
+  }
+
   private fun patchProject(id: String, f: (ProjectModel) -> ProjectModel) {
     _uiState.update { s -> s.copy(projects = s.projects.map { if (it.id == id) f(it) else it }) }
   }

@@ -48,8 +48,13 @@ data class Task(
   val smartList: String? = null,    // Do Next | Delegated | Someday
   val dueEndIso: String? = null,    // for time-blocked ranges
   val snoozeIso: String? = null,
+  val waitIso: String? = null,
   val recurUnit: String? = null,    // Day(s) | Week(s) | Month(s) | ...
   val recurInterval: Int = 1,
+  val recurDays: List<String> = emptyList(),  // weekday multi_select
+  val processImmersive: String? = null,       // Process | Immersive
+  val enforceSchedule: Boolean = false,
+  val shoppingList: Boolean = false,
 )
 
 data class Project(

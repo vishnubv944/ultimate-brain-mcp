@@ -395,6 +395,23 @@ class UbRepository(
     }
   }
 
+  /** Set (or clear, iso=null) a date property on a task. */
+  suspend fun setTaskDate(taskId: String, prop: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(taskId, mapOf("properties" to mapOf(prop to v))) }
+  }
+
+  /** Set a multi_select property on a task. */
+  suspend fun setTaskMulti(taskId: String, prop: String, values: List<String>) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(taskId, mapOf("properties" to mapOf(
+        prop to mapOf("multi_select" to values.map { v -> mapOf("name" to v) }),
+      )))
+    }
+  }
+
   suspend fun setTaskRecurrence(taskId: String, unit: String?, interval: Int) {
     val c = client ?: return
     val props = mapOf<String, Any>(

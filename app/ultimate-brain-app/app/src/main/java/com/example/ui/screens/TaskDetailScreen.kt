@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -171,6 +172,56 @@ fun TaskDetailScreen(
           Text(task.recurUnit, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
+      if (task.recurUnit != null) {
+        val dayOpts = uiState.optionsFor(
+          "task.Days",
+          listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+        )
+        Text("On days", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          dayOpts.forEach { d ->
+            FilterChip(
+              selected = d in task.recurDays,
+              onClick = { viewModel.toggleTaskRecurDay(task.id, d) },
+              label = { Text(d.take(3)) },
+            )
+          }
+        }
+      }
+
+      DateFieldRow("Snooze until", task.snoozeIso, { viewModel.setTaskSnooze(task.id, it) })
+      DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) })
+      OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) })
+
+      // Labels (multi_select).
+      run {
+        val labelOpts = uiState.optionsFor("task.Labels", task.labels)
+        if (labelOpts.isNotEmpty()) {
+          Text("Labels", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+          Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            labelOpts.forEach { l ->
+              FilterChip(
+                selected = l in task.labels,
+                onClick = {
+                  val next = if (l in task.labels) task.labels - l else task.labels + l
+                  viewModel.setTaskLabelSet(task.id, next)
+                },
+                label = { Text(l) },
+              )
+            }
+          }
+        }
+      }
+
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(checked = task.enforceSchedule, onCheckedChange = { viewModel.setTaskEnforceSchedule(task.id, it) })
+        Text("Enforce schedule", style = MaterialTheme.typography.bodyMedium)
+      }
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(checked = task.shoppingList, onCheckedChange = { viewModel.setTaskShoppingList(task.id, it) })
+        Text("Shopping list", style = MaterialTheme.typography.bodyMedium)
+      }
+
       if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
       if (task.projectName != null) {
         androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {
