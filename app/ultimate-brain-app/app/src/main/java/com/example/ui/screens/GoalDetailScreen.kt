@@ -92,6 +92,17 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           { viewModel.setGoalDeadline(goal.id, it) },
           Modifier.padding(horizontal = TodayPad),
         )
+        com.example.ui.components.DateFieldRow(
+          "Goal set", goal.goalSetIso,
+          { viewModel.setGoalSetDate(goal.id, it) },
+          Modifier.padding(horizontal = TodayPad),
+        )
+        com.example.ui.components.OptionRow(
+          "Area / Tag", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
+          uiState.tags.map { it.name },
+          { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+          Modifier.padding(horizontal = TodayPad),
+        )
       }
 
       item { SectionHeader("Projects", goal.linkedProjects.size, Modifier.padding(horizontal = TodayPad)) }

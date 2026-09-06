@@ -155,6 +155,9 @@ class MainActivity : ComponentActivity() {
           composable("milestones") {
             MilestonesScreen(viewModel = viewModel)
           }
+          composable("milestone_detail") {
+            com.example.ui.screens.MilestoneDetailScreen(viewModel = viewModel)
+          }
           composable("tags") {
             TagsScreen(viewModel = viewModel)
           }
@@ -201,6 +204,7 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.GOALS -> "goals"
   AppScreen.GOAL_DETAIL -> "goal_detail"
   AppScreen.MILESTONES -> "milestones"
+  AppScreen.MILESTONE_DETAIL -> "milestone_detail"
   AppScreen.TAGS -> "tags"
   AppScreen.TAG_DETAIL -> "tag_detail"
   AppScreen.WORK_SESSIONS -> "work_sessions"

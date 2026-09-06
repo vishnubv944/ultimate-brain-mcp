@@ -183,6 +183,8 @@ object NotionMappers {
         )
       },
       completionDate = p.prop("Achieved")?.dateStart(),
+      goalSetIso = p.prop("Goal Set", "Date Set")?.dateStart()?.substringBefore('T'),
+      tagId = p.prop("Tag").rel().firstOrNull(),
     )
   }
 
@@ -209,6 +211,7 @@ object NotionMappers {
       goalCategory = "",
       status = status,
       targetDateText = deadlineIso?.let { "Target: ${DateUtils.displayLabel(it)}" } ?: "",
+      targetDateIso = deadlineIso,
       isToday = deadline == today,
     )
   }
@@ -220,6 +223,7 @@ object NotionMappers {
       name = p.prop("Name")?.plainTitle().orEmpty(),
       type = p.prop("Type")?.selectName() ?: "Area",
       isFavorite = p.prop("Favorite")?.isChecked() == true,
+      parentId = p.prop("Parent Tag", "Parent item", "Parent")?.relationIds()?.firstOrNull(),
     )
   }
 

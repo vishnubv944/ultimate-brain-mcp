@@ -107,6 +107,7 @@ class UbRepository(
     val notes = notePages.filter(alive).map { NotionMappers.toNote(it, projectNames, tagNames) }
     val goals = goalPages.filter(alive).map { NotionMappers.toGoal(it, projectsById, tagNames) }
     val tags = tagPages.filter(alive).map { NotionMappers.toTag(it) }
+      .map { it.copy(parentName = it.parentId?.let { pid -> tagNames[pid] }) }
     val milestones = milestonePages.filter(alive).map { NotionMappers.toMilestone(it, goalNames) }
 
     WorkspaceData(tasks, projects, notes, goals, tags, milestones)
@@ -167,6 +168,16 @@ class UbRepository(
     return c.call { it.createPage(mapOf("parent" to mapOf("data_source_id" to dsId), "properties" to props)) }.id
   }
 
+  suspend fun setMilestoneGoal(milestoneId: String, goalId: String?) {
+    val c = client ?: return
+    val rel = if (goalId == null) emptyList<Any>() else listOf(mapOf("id" to goalId))
+    c.call { it.updatePage(milestoneId, mapOf("properties" to mapOf("Goal" to mapOf("relation" to rel)))) }
+  }
+  suspend fun setMilestoneDate(milestoneId: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(milestoneId, mapOf("properties" to mapOf("Target Deadline" to v))) }
+  }
   suspend fun setMilestoneCompleted(milestoneId: String, completed: Boolean) {
     val c = client ?: return
     val iso = if (completed) java.time.LocalDate.now().toString() else null
@@ -259,6 +270,21 @@ class UbRepository(
     val c = client ?: return
     val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
     c.call { it.updatePage(id, mapOf("properties" to mapOf("Target Deadline" to v))) }
+  }
+  suspend fun setGoalDate(id: String, prop: String, iso: String?) {
+    val c = client ?: return
+    val v: Any = mapOf("date" to (iso?.let { mapOf("start" to it) }))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf(prop to v))) }
+  }
+  suspend fun setTagParent(id: String, parentId: String?) {
+    val c = client ?: return
+    val rel = if (parentId == null) emptyList<Any>() else listOf(mapOf("id" to parentId))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Parent Tag" to mapOf("relation" to rel)))) }
+  }
+  suspend fun setGoalTag(id: String, tagId: String?) {
+    val c = client ?: return
+    val rel = if (tagId == null) emptyList<Any>() else listOf(mapOf("id" to tagId))
+    c.call { it.updatePage(id, mapOf("properties" to mapOf("Tag" to mapOf("relation" to rel)))) }
   }
   suspend fun setNoteDate(id: String, iso: String?) {
     val c = client ?: return

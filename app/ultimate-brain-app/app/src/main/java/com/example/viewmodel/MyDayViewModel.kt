@@ -46,6 +46,7 @@ enum class AppScreen {
   GOALS,
   GOAL_DETAIL,
   MILESTONES,
+  MILESTONE_DETAIL,
   TAGS,
   TAG_DETAIL,
   WORK_SESSIONS,
@@ -239,6 +240,7 @@ data class MyDayUiState(
   val milestones: List<MilestoneModel> = DummyData.milestonesList,
   val selectedMilestoneFilter: MilestoneFilter = MilestoneFilter.ALL,
   val selectedMilestoneGoalId: String = "All",
+  val selectedMilestoneId: String? = null,
 
   // Tags State
   val tags: List<TagModel> = DummyData.tagsList,
@@ -263,6 +265,7 @@ data class MyDayUiState(
   val isRemote: Boolean = false,
   val isSyncing: Boolean = false,
   val syncError: String? = null,
+  val pendingWriteCount: Int = 0,
 ) {
   val selectedTask: Task?
     get() = tasks.find { it.id == selectedTaskId } ?: tasks.firstOrNull()
@@ -278,6 +281,9 @@ data class MyDayUiState(
 
   val selectedTag: TagModel?
     get() = tags.find { it.id == selectedTagId } ?: tags.firstOrNull()
+
+  val selectedMilestone: MilestoneModel?
+    get() = milestones.find { it.id == selectedMilestoneId }
 
   val formattedTimer: String
     get() {
@@ -596,6 +602,7 @@ class MyDayViewModel : ViewModel() {
             syncError = null,
           )
         }
+        drainPendingWrites()
       } catch (e: Exception) {
         android.util.Log.e("UbSync", "workspace load failed", e)
         _uiState.update { it.copy(isSyncing = false, syncError = e.message ?: "Sync failed") }
@@ -603,15 +610,52 @@ class MyDayViewModel : ViewModel() {
     }
   }
 
+  // Offline-tolerant write queue. A failed Notion write is retried with
+  // backoff instead of being silently dropped; the UI shows the backlog.
+  private val pendingWrites = java.util.concurrent.CopyOnWriteArrayList<suspend (UbRepository) -> Unit>()
+  private var draining = false
+
   /** Fire a write to Notion without blocking the optimistic local update. */
   private fun remoteWrite(block: suspend (UbRepository) -> Unit) {
     if (!repo.isRemote) return
     viewModelScope.launch {
       try {
         block(repo)
-      } catch (e: Exception) {
-        _uiState.update { it.copy(syncError = e.message ?: "Save failed") }
+      } catch (_: Exception) {
+        pendingWrites.add(block)
+        _uiState.update { it.copy(pendingWriteCount = pendingWrites.size, syncError = "Offline — ${pendingWrites.size} change(s) will retry") }
+        drainPendingWrites()
       }
+    }
+  }
+
+  fun drainPendingWrites() {
+    if (draining || pendingWrites.isEmpty() || !repo.isRemote) return
+    draining = true
+    viewModelScope.launch {
+      var backoff = 2000L
+      while (pendingWrites.isNotEmpty()) {
+        val batch = pendingWrites.toList()
+        var anyFailed = false
+        for (w in batch) {
+          try {
+            w(repo)
+            pendingWrites.remove(w)
+            _uiState.update { it.copy(pendingWriteCount = pendingWrites.size) }
+          } catch (_: Exception) {
+            anyFailed = true
+          }
+        }
+        if (pendingWrites.isEmpty()) {
+          _uiState.update { it.copy(pendingWriteCount = 0, syncError = null) }
+          break
+        }
+        if (anyFailed) {
+          delay(backoff)
+          backoff = (backoff * 2).coerceAtMost(60_000L)
+        }
+      }
+      draining = false
     }
   }
 
@@ -989,6 +1033,15 @@ class MyDayViewModel : ViewModel() {
   fun setGoalStatusValue(id: String, status: String) {
     patchGoal(id) { it.copy(status = status) }
     remoteWrite { it.setGoalStatus(id, status) }
+  }
+  fun setGoalSetDate(id: String, iso: String?) {
+    patchGoal(id) { it.copy(goalSetIso = iso) }
+    remoteWrite { it.setGoalDate(id, "Goal Set", iso) }
+  }
+  fun setGoalTagRelation(id: String, tagId: String?) {
+    val name = tagId?.let { t -> _uiState.value.tags.find { it.id == t }?.name } ?: ""
+    patchGoal(id) { it.copy(tagId = tagId, tagArea = name) }
+    remoteWrite { it.setGoalTag(id, tagId) }
   }
   fun setNoteType(id: String, type: String) {
     patchNote(id) { it.copy(type = type) }
@@ -1401,6 +1454,17 @@ class MyDayViewModel : ViewModel() {
     remoteWrite { it.setNoteFavorite(noteId, fav) }
   }
 
+  fun setTagType(tagId: String, type: String) {
+    _uiState.update { s -> s.copy(tags = s.tags.map { if (it.id == tagId) it.copy(type = type) else it }) }
+    remoteWrite { it.setPageStatus(tagId, "Type", type) }
+  }
+
+  fun setTagParent(tagId: String, parentId: String?) {
+    val pname = parentId?.let { p -> _uiState.value.tags.find { it.id == p }?.name }
+    _uiState.update { s -> s.copy(tags = s.tags.map { if (it.id == tagId) it.copy(parentId = parentId, parentName = pname) else it }) }
+    remoteWrite { it.setTagParent(tagId, parentId) }
+  }
+
   fun toggleTagFavorite(tagId: String) {
     _uiState.update { s ->
       s.copy(tags = s.tags.map { if (it.id == tagId) it.copy(isFavorite = !it.isFavorite) else it })
@@ -1495,6 +1559,22 @@ class MyDayViewModel : ViewModel() {
 
   fun selectMilestoneFilter(filter: MilestoneFilter) {
     _uiState.update { it.copy(selectedMilestoneFilter = filter) }
+  }
+
+  fun openMilestoneDetail(milestoneId: String) {
+    _uiState.update { it.copy(selectedMilestoneId = milestoneId, currentScreen = AppScreen.MILESTONE_DETAIL) }
+    emitNav(AppScreen.MILESTONE_DETAIL)
+  }
+
+  fun setMilestoneGoal(milestoneId: String, goalId: String?) {
+    val name = goalId?.let { g -> _uiState.value.goals.find { it.id == g }?.name } ?: ""
+    _uiState.update { s -> s.copy(milestones = s.milestones.map { if (it.id == milestoneId) it.copy(goalId = goalId ?: "", goalName = name) else it }) }
+    remoteWrite { it.setMilestoneGoal(milestoneId, goalId) }
+  }
+
+  fun setMilestoneDate(milestoneId: String, iso: String?) {
+    _uiState.update { s -> s.copy(milestones = s.milestones.map { if (it.id == milestoneId) it.copy(targetDateText = iso?.let { d -> "Target: ${com.example.data.DateUtils.displayLabel(d)}" } ?: "") else it }) }
+    remoteWrite { it.setMilestoneDate(milestoneId, iso) }
   }
 
   fun toggleMilestoneStatus(milestoneId: String) {

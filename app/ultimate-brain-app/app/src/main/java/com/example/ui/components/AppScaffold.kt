@@ -1,7 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -17,11 +20,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.MyDayViewModel
+
+/** Thin strip shown under the top bar when Notion writes are queued offline. */
+@Composable
+fun SyncBanner(viewModel: MyDayViewModel) {
+  val state by viewModel.uiState.collectAsState()
+  if (state.pendingWriteCount <= 0) return
+  androidx.compose.foundation.layout.Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(MaterialTheme.colorScheme.errorContainer)
+      .clickable { viewModel.drainPendingWrites() }
+      .padding(horizontal = 16.dp, vertical = 6.dp),
+    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+  ) {
+    Text(
+      "${state.pendingWriteCount} change(s) waiting to sync — tap to retry",
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onErrorContainer,
+    )
+  }
+}
 
 /** Standard bottom-nav wiring shared by every top-level screen. */
 fun bottomNavHandler(viewModel: MyDayViewModel): (BottomNavDestination) -> Unit = { dest ->
@@ -54,13 +81,16 @@ fun ScreenScaffold(
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
-      TopAppBar(
-        title = {
-          Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-        },
-        actions = { actions() },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-      )
+      androidx.compose.foundation.layout.Column {
+        TopAppBar(
+          title = {
+            Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+          },
+          actions = { actions() },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        SyncBanner(viewModel)
+      }
     },
     bottomBar = {
       BottomNavBar(activeDestination = active, onDestinationSelected = bottomNavHandler(viewModel))

@@ -62,7 +62,9 @@ data class GoalModel(
   val completedMilestonesCount: Int = 2,
   val totalMilestonesCount: Int = 3,
   val linkedProjects: List<GoalProjectSummary> = emptyList(),
-  val completionDate: String? = null
+  val completionDate: String? = null,
+  val goalSetIso: String? = null,
+  val tagId: String? = null,
 )
 
 // --- Milestones ---
@@ -74,6 +76,7 @@ data class MilestoneModel(
   val goalCategory: String, // Engineering, Health, Finance
   val status: String = "In Progress", // Completed, In Progress, Pending
   val targetDateText: String = "Target: Today, Sep 6",
+  val targetDateIso: String? = null,
   val linkedTasksDone: Int = 3,
   val linkedTasksTotal: Int = 4,
   val isToday: Boolean = false,
@@ -95,6 +98,8 @@ data class TagModel(
   val type: String = "Area", // Area, Resource, Entity
   val icon: String = "corporate_fare",
   val isFavorite: Boolean = false,
+  val parentId: String? = null,
+  val parentName: String? = null,
   val totalItems: Int = 18,
   val activeItems: Int = 8,
   val projectsCount: Int = 4,

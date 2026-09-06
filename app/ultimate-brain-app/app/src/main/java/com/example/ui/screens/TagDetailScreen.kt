@@ -43,6 +43,31 @@ fun TagDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
         Text(tag.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = TodayPad))
         Text(tag.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = TodayPad))
+        SectionHeader("Details", modifier = Modifier.padding(horizontal = TodayPad))
+        com.example.ui.components.OptionRow(
+          "Type", tag.type,
+          uiState.optionsFor("tag.Type", listOf("Area", "Resource", "Entity")),
+          { it?.let { t -> viewModel.setTagType(tag.id, t) } },
+          Modifier.padding(horizontal = TodayPad), allowClear = false,
+        )
+        com.example.ui.components.OptionRow(
+          "Parent tag", tag.parentName,
+          uiState.tags.filter { it.id != tag.id }.map { it.name },
+          { name -> viewModel.setTagParent(tag.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+          Modifier.padding(horizontal = TodayPad),
+        )
+        val subTags = uiState.tags.filter { it.parentId == tag.id }
+        if (subTags.isNotEmpty()) {
+          SectionHeader("Sub-tags", subTags.size, Modifier.padding(horizontal = TodayPad))
+          subTags.forEach { st ->
+            EntityRow(
+              title = st.name, meta = st.type,
+              leadingDot = MaterialTheme.colorScheme.entityProjects,
+              onClick = { viewModel.openTagDetail(st.id) },
+              modifier = Modifier.padding(horizontal = TodayPad),
+            )
+          }
+        }
       }
 
       item { SectionHeader("Projects", projects.size, Modifier.padding(horizontal = TodayPad)) }

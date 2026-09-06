@@ -56,7 +56,7 @@ fun MilestonesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             leadingCheck = m.status == "Completed",
             onLeadingClick = { viewModel.toggleMilestoneStatus(m.id) },
             strikethrough = m.status == "Completed",
-            onClick = {},
+            onClick = { viewModel.openMilestoneDetail(m.id) },
             modifier = Modifier.padding(horizontal = TodayPad),
           )
           if (i < list.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
