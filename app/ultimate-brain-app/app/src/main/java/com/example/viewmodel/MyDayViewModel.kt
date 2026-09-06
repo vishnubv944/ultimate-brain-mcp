@@ -195,6 +195,11 @@ data class MyDayUiState(
   // Total focus time logged today (seconds), for the Wrap-up scorecard.
   val focusedSecondsToday: Long = 0L,
 
+  // Body (markdown) of the currently-open detail page, fetched lazily.
+  val detailBody: String? = null,
+  val detailBodyLoading: Boolean = false,
+  val detailBodyForId: String? = null,
+
   // Projects State
   val projects: List<ProjectModel> = DummyData.projectsList,
   val selectedProjectId: String? = null,
@@ -577,6 +582,22 @@ class MyDayViewModel : ViewModel() {
       )
     }
     emitNav(AppScreen.TASK_DETAIL)
+    loadDetailBody(taskId)
+  }
+
+  /** Fetch a page's markdown body for the detail screens. */
+  private fun loadDetailBody(pageId: String) {
+    if (!repo.isRemote) {
+      _uiState.update { it.copy(detailBody = null, detailBodyForId = pageId, detailBodyLoading = false) }
+      return
+    }
+    _uiState.update { it.copy(detailBody = null, detailBodyForId = pageId, detailBodyLoading = true) }
+    viewModelScope.launch {
+      val body = try { repo.getPageBody(pageId) } catch (_: Exception) { null }
+      _uiState.update {
+        if (it.detailBodyForId == pageId) it.copy(detailBody = body, detailBodyLoading = false) else it
+      }
+    }
   }
 
   fun selectTasksFilter(filter: TasksFilter) {
@@ -993,6 +1014,7 @@ class MyDayViewModel : ViewModel() {
   fun openProjectDetail(projectId: String) {
     _uiState.update { it.copy(selectedProjectId = projectId, currentScreen = AppScreen.PROJECT_DETAIL) }
     emitNav(AppScreen.PROJECT_DETAIL)
+    loadDetailBody(projectId)
   }
 
   fun openEditProject(projectId: String) {
@@ -1069,6 +1091,7 @@ class MyDayViewModel : ViewModel() {
   fun openNoteDetail(noteId: String) {
     _uiState.update { it.copy(selectedNoteId = noteId, currentScreen = AppScreen.NOTE_DETAIL) }
     emitNav(AppScreen.NOTE_DETAIL)
+    loadDetailBody(noteId)
   }
 
   fun openNoteEditor(noteId: String) {
@@ -1076,27 +1099,43 @@ class MyDayViewModel : ViewModel() {
     emitNav(AppScreen.NOTE_EDITOR)
   }
 
-  fun createNewNote(projectId: String? = null) {
+  fun createNewNote(projectId: String? = null, type: String = "Note") {
     val newId = "n-${System.currentTimeMillis()}"
-    val projName = projectId?.let { pId -> _uiState.value.projects.find { it.id == pId }?.name } ?: _uiState.value.projects.firstOrNull()?.name
+    val projName = projectId?.let { pId -> _uiState.value.projects.find { it.id == pId }?.name }
     val newNote = NoteModel(
       id = newId,
-      title = "Untitled Note",
-      type = "Reference",
+      title = "Untitled note",
+      type = type,
       date = "Today",
       excerpt = "",
-      rawMarkdown = "# Untitled Note\n\nStart writing here...",
+      rawMarkdown = "",
       projectName = projName,
-      isFavorite = false
+      isFavorite = false,
     )
     _uiState.update { state ->
       state.copy(
         notes = listOf(newNote) + state.notes,
         selectedNoteId = newId,
-        currentScreen = AppScreen.NOTE_EDITOR
+        currentScreen = AppScreen.NOTE_EDITOR,
       )
     }
     emitNav(AppScreen.NOTE_EDITOR)
+    if (repo.isRemote) {
+      viewModelScope.launch {
+        try {
+          repo.createNote("Untitled note", type, projectId)?.let { realId ->
+            _uiState.update { s ->
+              s.copy(
+                notes = s.notes.map { if (it.id == newId) it.copy(id = realId) else it },
+                selectedNoteId = if (s.selectedNoteId == newId) realId else s.selectedNoteId,
+              )
+            }
+          }
+        } catch (e: Exception) {
+          _uiState.update { it.copy(syncError = e.message ?: "Could not create note") }
+        }
+      }
+    }
   }
 
   /**
@@ -1162,8 +1201,14 @@ class MyDayViewModel : ViewModel() {
       state.copy(
         notes = updated,
         currentScreen = AppScreen.NOTE_DETAIL,
-        snackbarMessage = SnackbarMessage.NoteSaved
+        detailBody = updatedNote.rawMarkdown.ifBlank { null },
+        detailBodyForId = updatedNote.id,
+        snackbarMessage = SnackbarMessage.NoteSaved,
       )
+    }
+    remoteWrite {
+      it.updateNoteMeta(updatedNote.id, updatedNote.title, updatedNote.type)
+      if (updatedNote.rawMarkdown.isNotBlank()) it.setPageBody(updatedNote.id, updatedNote.rawMarkdown)
     }
     // note_editor -> note_detail.
     navigateBack()
@@ -1174,25 +1219,42 @@ class MyDayViewModel : ViewModel() {
     val newId = "g-${System.currentTimeMillis()}"
     val newGoal = GoalModel(
       id = newId,
-      name = "New Goal",
+      name = "New goal",
       status = "Active",
-      deadline = "Dec 31, 2026",
+      deadline = "—",
       aggregatedProgress = 0f,
-      aggregatedProgressText = "0%"
+      aggregatedProgressText = "0%",
     )
     _uiState.update { state ->
       state.copy(
         goals = listOf(newGoal) + state.goals,
         selectedGoalId = newId,
-        currentScreen = AppScreen.GOAL_DETAIL
+        currentScreen = AppScreen.GOAL_DETAIL,
       )
     }
     emitNav(AppScreen.GOAL_DETAIL)
+    if (repo.isRemote) {
+      viewModelScope.launch {
+        try {
+          repo.createGoal("New goal")?.let { realId ->
+            _uiState.update { s ->
+              s.copy(
+                goals = s.goals.map { if (it.id == newId) it.copy(id = realId) else it },
+                selectedGoalId = if (s.selectedGoalId == newId) realId else s.selectedGoalId,
+              )
+            }
+          }
+        } catch (e: Exception) {
+          _uiState.update { it.copy(syncError = e.message ?: "Could not create goal") }
+        }
+      }
+    }
   }
 
   fun openGoalDetail(goalId: String) {
     _uiState.update { it.copy(selectedGoalId = goalId, currentScreen = AppScreen.GOAL_DETAIL) }
     emitNav(AppScreen.GOAL_DETAIL)
+    loadDetailBody(goalId)
   }
 
   fun selectGoalFilter(filter: GoalFilter) {

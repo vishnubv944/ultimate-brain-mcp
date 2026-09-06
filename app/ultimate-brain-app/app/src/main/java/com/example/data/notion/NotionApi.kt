@@ -2,6 +2,7 @@ package com.example.data.notion
 
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -29,4 +30,18 @@ interface NotionApi {
     @Path("pageId") pageId: String,
     @Body body: Map<String, @JvmSuppressWildcards Any>,
   ): NotionPage
+
+  // Page body as Markdown — needs the newer API version, pinned per-call.
+  @GET("pages/{pageId}/markdown")
+  suspend fun getPageMarkdown(
+    @Path("pageId") pageId: String,
+    @Header("Notion-Version") version: String = "2026-03-11",
+  ): MarkdownResponse
+
+  @PATCH("pages/{pageId}/markdown")
+  suspend fun replacePageMarkdown(
+    @Path("pageId") pageId: String,
+    @Body body: Map<String, @JvmSuppressWildcards Any>,
+    @Header("Notion-Version") version: String = "2026-03-11",
+  ): MarkdownResponse
 }

@@ -84,6 +84,7 @@ fun DetailScaffold(
   modifier: Modifier = Modifier,
   actions: @Composable () -> Unit = {},
   bottomBar: @Composable () -> Unit = {},
+  fab: @Composable () -> Unit = {},
   snackbarHost: SnackbarHostState? = null,
   content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -104,6 +105,7 @@ fun DetailScaffold(
       )
     },
     bottomBar = bottomBar,
+    floatingActionButton = fab,
     snackbarHost = { if (snackbarHost != null) SnackbarHost(snackbarHost) },
     containerColor = MaterialTheme.colorScheme.background,
     content = content,

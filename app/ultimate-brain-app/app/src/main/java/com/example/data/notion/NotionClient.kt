@@ -23,12 +23,16 @@ class NotionClient(
   private val rateLimiter = TokenSpacedLimiter(minIntervalMs = 350L)
 
   private val authInterceptor = Interceptor { chain ->
-    val req = chain.request().newBuilder()
-      .addHeader("Authorization", "Bearer $token")
-      .addHeader("Notion-Version", NotionConfig.API_VERSION)
-      .addHeader("Content-Type", "application/json")
-      .build()
-    chain.proceed(req)
+    val original = chain.request()
+    val b = original.newBuilder()
+      .header("Authorization", "Bearer $token")
+      .header("Content-Type", "application/json")
+    // Don't clobber a per-call Notion-Version (the markdown endpoints pin a
+    // newer one via @Header).
+    if (original.header("Notion-Version") == null) {
+      b.header("Notion-Version", NotionConfig.API_VERSION)
+    }
+    chain.proceed(b.build())
   }
 
   private val okHttp: OkHttpClient = OkHttpClient.Builder()

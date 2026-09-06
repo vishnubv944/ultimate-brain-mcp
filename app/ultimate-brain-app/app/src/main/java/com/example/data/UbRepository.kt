@@ -120,6 +120,19 @@ class UbRepository(
     c.call { it.updatePage(noteId, mapOf("properties" to mapOf("Favorite" to mapOf("checkbox" to favorite)))) }
   }
 
+  suspend fun updateNoteMeta(noteId: String, title: String, type: String) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(
+        noteId,
+        mapOf("properties" to mapOf(
+          "Name" to mapOf("title" to listOf(mapOf("text" to mapOf("content" to title)))),
+          "Type" to mapOf("select" to mapOf("name" to type)),
+        )),
+      )
+    }
+  }
+
   suspend fun setProjectArchived(projectId: String, archived: Boolean) {
     val c = client ?: return
     c.call { it.updatePage(projectId, mapOf("properties" to mapOf("Archived" to mapOf("checkbox" to archived)))) }
@@ -168,6 +181,29 @@ class UbRepository(
     return c.call {
       it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.notesDsId), "properties" to props))
     }.id
+  }
+
+  /** Page body as Markdown, or null (unconfigured, empty, or unsupported). */
+  suspend fun getPageBody(pageId: String): String? {
+    val c = client ?: return null
+    return try {
+      c.call { it.getPageMarkdown(pageId) }.markdown?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+      null
+    }
+  }
+
+  suspend fun setPageBody(pageId: String, markdown: String) {
+    val c = client ?: return
+    c.call {
+      it.replacePageMarkdown(
+        pageId,
+        mapOf(
+          "type" to "replace_content",
+          "replace_content" to mapOf("new_str" to markdown, "allow_deleting_content" to true),
+        ),
+      )
+    }
   }
 
   suspend fun createGoal(name: String): String? {

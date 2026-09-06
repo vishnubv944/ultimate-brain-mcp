@@ -69,6 +69,12 @@ data class NotionFormula(
 )
 
 @JsonClass(generateAdapter = true)
+data class MarkdownResponse(
+  val markdown: String? = null,
+  val truncated: Boolean = false,
+)
+
+@JsonClass(generateAdapter = true)
 data class QueryResponse(
   val results: List<NotionPage> = emptyList(),
   @Json(name = "has_more") val hasMore: Boolean = false,
