@@ -1,9 +1,14 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -124,6 +129,31 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
             onClick = { viewModel.setProjectReviewNotes(project.id, reviewDraft) },
             modifier = Modifier.padding(horizontal = TodayPad - 12.dp),
           ) { androidx.compose.material3.Text("Save review notes") }
+        }
+
+        if (uiState.tags.isNotEmpty()) {
+          Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = TodayPad, top = 8.dp))
+          Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = TodayPad), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            uiState.tags.forEach { tag ->
+              FilterChip(
+                selected = tag.id in project.tagIds,
+                onClick = { viewModel.toggleProjectTag(project.id, tag.id) },
+                label = { Text(tag.name) },
+              )
+            }
+          }
+        }
+        if (uiState.people.isNotEmpty()) {
+          Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = TodayPad, top = 8.dp))
+          Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = TodayPad), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            uiState.people.forEach { person ->
+              FilterChip(
+                selected = person.id in project.personIds,
+                onClick = { viewModel.toggleProjectPerson(project.id, person.id) },
+                label = { Text(person.name) },
+              )
+            }
+          }
         }
       }
 

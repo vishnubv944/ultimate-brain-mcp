@@ -120,6 +120,8 @@ object NotionMappers {
       templateName = null,
       isArchived = p.prop("Archived")?.isChecked() == true,
       reviewNotes = p.prop("Review Notes")?.plainTitle().orEmpty(),
+      tagIds = tagIds,
+      personIds = p.prop("People").rel(),
     )
   }
 

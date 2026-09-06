@@ -1047,6 +1047,19 @@ class MyDayViewModel : ViewModel() {
     patchProject(id) { it.copy(reviewNotes = text) }
     remoteWrite { it.setProjectReviewNotes(id, text) }
   }
+  fun toggleProjectTag(id: String, tagId: String) {
+    val cur = _uiState.value.projects.find { it.id == id }?.tagIds ?: emptyList()
+    val next = if (tagId in cur) cur - tagId else cur + tagId
+    val names = next.mapNotNull { t -> _uiState.value.tags.find { it.id == t }?.name }.map { "#$it" }
+    patchProject(id) { it.copy(tagIds = next, tags = names) }
+    remoteWrite { it.setProjectRelation(id, "Tag", next) }
+  }
+  fun toggleProjectPerson(id: String, personId: String) {
+    val cur = _uiState.value.projects.find { it.id == id }?.personIds ?: emptyList()
+    val next = if (personId in cur) cur - personId else cur + personId
+    patchProject(id) { it.copy(personIds = next) }
+    remoteWrite { it.setProjectRelation(id, "People", next) }
+  }
   fun setProjectGoalRelation(id: String, goalId: String?) {
     val name = goalId?.let { g -> _uiState.value.goals.find { it.id == g }?.name }
     patchProject(id) { it.copy(goalName = name) }

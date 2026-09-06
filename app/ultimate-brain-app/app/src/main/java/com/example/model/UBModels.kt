@@ -19,6 +19,8 @@ data class ProjectModel(
   val templateName: String? = "Product Release Template",
   val isArchived: Boolean = false,
   val reviewNotes: String = "",
+  val tagIds: List<String> = emptyList(),
+  val personIds: List<String> = emptyList(),
 )
 
 // --- Notes ---
