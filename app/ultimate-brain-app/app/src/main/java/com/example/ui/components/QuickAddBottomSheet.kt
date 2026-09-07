@@ -35,9 +35,13 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -83,7 +87,8 @@ fun QuickAddBottomSheet(
   var selectedProject by remember { mutableStateOf<ProjectModel?>(null) }
   var projectMenuOpen by remember { mutableStateOf(false) }
   var selectedPriority by remember { mutableStateOf<Priority?>(null) }
-  var dueDisplay by remember { mutableStateOf<String?>(null) }
+  var dueIso by remember { mutableStateOf<String?>(null) }
+  var datePickerOpen by remember { mutableStateOf(false) }
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -153,21 +158,23 @@ fun QuickAddBottomSheet(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        // Due date — cycles none → Today → Tomorrow → +1 week
+        // Due date — opens a date picker (with Today / Tomorrow / +1wk shortcuts).
         FilterChip(
-          selected = dueDisplay != null,
-          onClick = {
-            dueDisplay = when (dueDisplay) {
-              null -> "Today"
-              "Today" -> "Tomorrow"
-              "Tomorrow" -> "+1 week"
-              else -> null
-            }
-          },
-          label = { Text(dueDisplay ?: "Set due") },
+          selected = dueIso != null,
+          onClick = { datePickerOpen = true },
+          label = { Text(dueChipLabel(dueIso)) },
           leadingIcon = {
             Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
-          }
+          },
+          trailingIcon = if (dueIso != null) {
+            {
+              Icon(
+                Icons.Default.Close,
+                contentDescription = "Clear due date",
+                modifier = Modifier.size(18.dp).clickable { dueIso = null },
+              )
+            }
+          } else null,
         )
 
         // Project — chip anchors a dropdown menu of the supplied projects.
@@ -236,12 +243,6 @@ fun QuickAddBottomSheet(
 
       Button(
         onClick = {
-          val dueIso = when (dueDisplay) {
-            "Today" -> java.time.LocalDate.now().toString()
-            "Tomorrow" -> java.time.LocalDate.now().plusDays(1).toString()
-            "+1 week" -> java.time.LocalDate.now().plusWeeks(1).toString()
-            else -> null
-          }
           if (taskName.isNotBlank()) onSaveTask(taskName, selectedProject?.id, selectedPriority, isMyDay, dueIso)
         },
         enabled = taskName.isNotBlank(),
@@ -256,5 +257,45 @@ fun QuickAddBottomSheet(
         Text("Save task", style = MaterialTheme.typography.labelLarge)
       }
     }
+  }
+
+  if (datePickerOpen) {
+    val today = java.time.LocalDate.now()
+    val initialMillis = (dueIso?.substringBefore('T')?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: today)
+      .atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+    fun setDate(d: java.time.LocalDate) { dueIso = d.toString(); datePickerOpen = false }
+    DatePickerDialog(
+      onDismissRequest = { datePickerOpen = false },
+      confirmButton = {
+        TextButton(onClick = {
+          state.selectedDateMillis?.let {
+            dueIso = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
+          }
+          datePickerOpen = false
+        }) { Text("OK") }
+      },
+      dismissButton = { TextButton(onClick = { datePickerOpen = false }) { Text("Cancel") } },
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        AssistChip(onClick = { setDate(today) }, label = { Text("Today") })
+        AssistChip(onClick = { setDate(today.plusDays(1)) }, label = { Text("Tomorrow") })
+        AssistChip(onClick = { setDate(today.plusWeeks(1)) }, label = { Text("+1 week") })
+      }
+      DatePicker(state = state)
+    }
+  }
+}
+
+private fun dueChipLabel(iso: String?): String {
+  val d = iso?.substringBefore('T')?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: return "Set due"
+  val today = java.time.LocalDate.now()
+  return when (d) {
+    today -> "Today"
+    today.plusDays(1) -> "Tomorrow"
+    else -> d.format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
   }
 }
