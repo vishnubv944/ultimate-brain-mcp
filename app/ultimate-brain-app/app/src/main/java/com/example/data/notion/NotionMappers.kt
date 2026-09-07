@@ -296,7 +296,7 @@ object NotionMappers {
     val taskId = p.prop("Tasks", "Task").rel().firstOrNull()
     val start = p.prop("Start", "Start Time")?.dateStart()
     val end = p.prop("End", "End Time")?.date?.end ?: p.prop("End", "End Time")?.dateStart()
-    val mins = p.prop("Duration (min)", "Duration")?.number?.toInt()
+    val mins = (p.prop("Duration (Mins)", "Duration (min)") ?: p.prop("Duration (minutes)"))?.number?.toInt()
       ?: if (start != null && end != null) {
         try {
           java.time.Duration.between(

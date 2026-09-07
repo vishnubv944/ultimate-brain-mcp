@@ -14,6 +14,7 @@ import com.example.model.ProjectModel
 import com.example.model.TagModel
 import com.example.model.Task
 import com.example.model.TaskStatus
+import com.example.model.WorkSessionModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -556,6 +557,23 @@ class UbRepository(
     return c.call {
       it.createPage(mapOf("parent" to mapOf("data_source_id" to NotionConfig.workSessionsDsId), "properties" to props))
     }.id
+  }
+
+  /** Every Work Session linked to [taskId], newest first. Empty on dummy data / no config. */
+  suspend fun loadWorkSessionsForTask(taskId: String): List<WorkSessionModel> = withContext(Dispatchers.IO) {
+    val c = client ?: return@withContext emptyList()
+    if (NotionConfig.workSessionsDsId.isBlank()) return@withContext emptyList()
+    val pages = try {
+      c.queryAll(
+        NotionConfig.workSessionsDsId,
+        filter = mapOf("property" to "Tasks", "relation" to mapOf("contains" to taskId)),
+        sorts = listOf(mapOf("property" to "Start", "direction" to "descending")),
+        maxPages = 4,
+      )
+    } catch (_: Exception) {
+      emptyList()
+    }
+    pages.filter { !it.archived && !it.inTrash }.map { NotionMappers.toWorkSession(it, emptyMap()) }
   }
 
   /** Create a task; returns the new page id, or null when running on dummy data. */

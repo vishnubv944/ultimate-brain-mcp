@@ -59,6 +59,7 @@ enum class AppScreen {
   TAGS,
   TAG_DETAIL,
   WORK_SESSIONS,
+  TASK_WORK_SESSIONS,
   SETTINGS,
   GLOBAL_SEARCH,
   MORE_HUB,
@@ -266,6 +267,10 @@ data class MyDayUiState(
   val workSessions: List<WorkSessionModel> = DummyData.workSessionsList,
   val activeSessionSeconds: Long = 0L,
   val isWorkSessionActive: Boolean = false,
+  // Per-task work-session history (the "Time" detail screen).
+  val taskWorkSessions: List<WorkSessionModel> = emptyList(),
+  val taskWorkSessionsForId: String? = null,
+  val taskWorkSessionsLoading: Boolean = false,
 
   // Global Search State
   val globalSearchQuery: String = "",
@@ -894,6 +899,32 @@ class MyDayViewModel : ViewModel() {
     }
     emitNav(AppScreen.TASK_DETAIL)
     loadDetailBody(taskId)
+  }
+
+  /** Open the per-task work-session history / charts screen. */
+  fun openTaskWorkSessions(taskId: String) {
+    _uiState.update {
+      it.copy(
+        selectedTaskId = taskId,
+        currentScreen = AppScreen.TASK_WORK_SESSIONS,
+        // Seed from what's already loaded so the screen never starts empty.
+        taskWorkSessions = it.workSessions.filter { s -> s.taskId == taskId },
+        taskWorkSessionsForId = taskId,
+        taskWorkSessionsLoading = repo.isRemote,
+      )
+    }
+    emitNav(AppScreen.TASK_WORK_SESSIONS)
+    if (!repo.isRemote) return
+    viewModelScope.launch {
+      val sessions = try { repo.loadWorkSessionsForTask(taskId) } catch (_: Exception) { null }
+      _uiState.update {
+        if (it.taskWorkSessionsForId != taskId) it
+        else it.copy(
+          taskWorkSessions = sessions ?: it.taskWorkSessions,
+          taskWorkSessionsLoading = false,
+        )
+      }
+    }
   }
 
   /** Fetch a page's markdown body for the detail screens. */

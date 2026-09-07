@@ -37,6 +37,7 @@ import com.example.ui.screens.TagDetailScreen
 import com.example.ui.screens.TagsScreen
 import com.example.ui.screens.TaskDetailScreen
 import com.example.ui.screens.TasksScreen
+import com.example.ui.screens.TaskWorkSessionsScreen
 import com.example.ui.screens.WorkSessionsScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.AppScreen
@@ -168,6 +169,9 @@ class MainActivity : ComponentActivity() {
           composable("work_sessions") {
             WorkSessionsScreen(viewModel = viewModel)
           }
+          composable("task_work_sessions") {
+            TaskWorkSessionsScreen(viewModel = viewModel)
+          }
           composable("settings") {
             SettingsScreen(viewModel = viewModel)
           }
@@ -209,6 +213,7 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.TAGS -> "tags"
   AppScreen.TAG_DETAIL -> "tag_detail"
   AppScreen.WORK_SESSIONS -> "work_sessions"
+  AppScreen.TASK_WORK_SESSIONS -> "task_work_sessions"
   AppScreen.SETTINGS -> "settings"
   AppScreen.GLOBAL_SEARCH -> "global_search"
   AppScreen.MORE_HUB -> "more_hub"

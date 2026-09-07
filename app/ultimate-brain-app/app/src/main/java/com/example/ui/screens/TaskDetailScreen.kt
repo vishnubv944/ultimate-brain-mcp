@@ -193,6 +193,34 @@ fun TaskDetailScreen(
       DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) })
       OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) })
 
+      run {
+        val logged = uiState.workSessions.filter { it.taskId == task.id }
+        val mins = logged.sumOf { s -> s.durationMinutes ?: 0 }
+        val summary = when {
+          logged.isEmpty() -> "No sessions yet"
+          mins >= 60 -> "${mins / 60}h ${mins % 60}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
+          else -> "${mins}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
+        }
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable { viewModel.openTaskWorkSessions(task.id) }
+            .padding(vertical = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column(Modifier.weight(1f)) {
+            Text("Time tracked", style = MaterialTheme.typography.bodyLarge)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = "Open work sessions",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+          )
+        }
+      }
+
       // Labels (multi_select).
       run {
         val labelOpts = uiState.optionsFor("task.Labels", task.labels)
