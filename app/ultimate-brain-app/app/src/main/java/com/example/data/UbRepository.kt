@@ -73,6 +73,9 @@ class UbRepository(
       "property" to "Archived", "checkbox" to mapOf("equals" to false),
     )
     val notesByDate = listOf(mapOf<String, Any>("property" to "Note Date", "direction" to "descending"))
+    // Due ascending → overdue, then today, then upcoming land in the earliest
+    // pages, so the near-term work is always complete even if the page cap bites.
+    val tasksByDue = listOf(mapOf<String, Any>("property" to "Due", "direction" to "ascending"))
 
     // A filter referencing a property the workspace doesn't have would 400 and
     // sink the whole load, so each falls back to an unfiltered query.
@@ -84,7 +87,18 @@ class UbRepository(
       }
 
     val (taskPages, projectPages, notePages, goalPages, tagPages, milestonePages) = coroutineScope {
-      val t = async { q(NotionConfig.tasksDsId, filter = openOrRecentTasks, maxPages = if (doneLookbackDays > 90) 20 else 8) }
+      // The chips (Today / This week / Overdue / Active projects / Inbox /
+      // Recurring) collectively span the whole open task set, so we have to
+      // load all of it. queryAll stops as soon as has_more is false — the cap
+      // is just a safety ceiling for pathological workspaces.
+      val t = async {
+        q(
+          NotionConfig.tasksDsId,
+          filter = openOrRecentTasks,
+          sorts = tasksByDue,
+          maxPages = if (doneLookbackDays > 90) 40 else 25,
+        )
+      }
       val p = async { q(NotionConfig.projectsDsId, filter = notArchivedProjects) }
       val n = async { q(NotionConfig.notesDsId, sorts = notesByDate, maxPages = 2) }
       val g = async { q(NotionConfig.goalsDsId) }
