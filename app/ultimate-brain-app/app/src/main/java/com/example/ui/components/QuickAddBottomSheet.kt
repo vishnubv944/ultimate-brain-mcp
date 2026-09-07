@@ -264,7 +264,6 @@ fun QuickAddBottomSheet(
     val initialMillis = (dueIso?.substringBefore('T')?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: today)
       .atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
     val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-    fun setDate(d: java.time.LocalDate) { dueIso = d.toString(); datePickerOpen = false }
     DatePickerDialog(
       onDismissRequest = { datePickerOpen = false },
       confirmButton = {
@@ -275,16 +274,13 @@ fun QuickAddBottomSheet(
           datePickerOpen = false
         }) { Text("OK") }
       },
-      dismissButton = { TextButton(onClick = { datePickerOpen = false }) { Text("Cancel") } },
+      dismissButton = {
+        Row {
+          TextButton(onClick = { dueIso = null; datePickerOpen = false }) { Text("Clear") }
+          TextButton(onClick = { datePickerOpen = false }) { Text("Cancel") }
+        }
+      },
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        AssistChip(onClick = { setDate(today) }, label = { Text("Today") })
-        AssistChip(onClick = { setDate(today.plusDays(1)) }, label = { Text("Tomorrow") })
-        AssistChip(onClick = { setDate(today.plusWeeks(1)) }, label = { Text("+1 week") })
-      }
       DatePicker(state = state)
     }
   }
