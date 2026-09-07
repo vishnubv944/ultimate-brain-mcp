@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +56,8 @@ fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val options = remember(uiState.projects, filter) {
     PROJECT_FILTERS.map { (f, label) -> FilterOption(f, label, uiState.projectFilterCount(f)) }
   }
+  var showCreate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+  if (showCreate) com.example.ui.components.NameDialog("project", { showCreate = false }) { viewModel.createNewProject(it) }
 
   ScreenScaffold(
     title = "Projects",
@@ -68,7 +71,7 @@ fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     },
     fab = {
       ExtendedFloatingActionButton(
-        onClick = { viewModel.createNewProject() },
+        onClick = { showCreate = true },
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         icon = { Icon(Icons.Default.Add, contentDescription = null) },

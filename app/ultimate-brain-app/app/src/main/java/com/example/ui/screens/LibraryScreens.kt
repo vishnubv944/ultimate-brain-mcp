@@ -48,16 +48,8 @@ import com.example.ui.components.TodayPad
 import com.example.viewmodel.MyDayViewModel
 
 @Composable
-private fun CreateDialog(label: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-  var text by remember { mutableStateOf("") }
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text("New $label") },
-    text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true, placeholder = { Text("Name") }) },
-    confirmButton = { TextButton(onClick = { onConfirm(text); onDismiss() }, enabled = text.isNotBlank()) { Text("Create") } },
-    dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-  )
-}
+private fun CreateDialog(label: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) =
+  com.example.ui.components.NameDialog(label, onDismiss, onConfirm)
 
 private fun addFab(onClick: () -> Unit): @Composable () -> Unit = {
   FloatingActionButton(

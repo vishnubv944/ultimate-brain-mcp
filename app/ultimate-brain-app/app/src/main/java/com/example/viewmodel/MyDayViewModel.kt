@@ -1386,17 +1386,18 @@ class MyDayViewModel : ViewModel() {
   }
 
   /** Create a project and jump straight into its editor. */
-  fun createNewProject() {
+  fun createNewProject(name: String = "New project") {
+    val projectName = name.ifBlank { "New project" }
     val tempId = "p-new-${System.currentTimeMillis()}"
-    val draft = ProjectModel(id = tempId, name = "New project", status = "Planned")
+    val draft = ProjectModel(id = tempId, name = projectName, status = "Planned")
     _uiState.update {
-      it.copy(projects = listOf(draft) + it.projects, selectedProjectId = tempId, currentScreen = AppScreen.EDIT_PROJECT)
+      it.copy(projects = listOf(draft) + it.projects, selectedProjectId = tempId, currentScreen = AppScreen.PROJECT_DETAIL)
     }
-    emitNav(AppScreen.EDIT_PROJECT)
+    emitNav(AppScreen.PROJECT_DETAIL)
     if (repo.isRemote) {
       viewModelScope.launch {
         try {
-          repo.createProject("New project")?.let { realId ->
+          repo.createProject(projectName)?.let { realId ->
             _uiState.update { s ->
               s.copy(
                 projects = s.projects.map { if (it.id == tempId) it.copy(id = realId) else it },
@@ -1558,16 +1559,10 @@ class MyDayViewModel : ViewModel() {
   }
 
   // --- Goals & Milestones Actions ---
-  fun createNewGoal() {
+  fun createNewGoal(name: String = "New goal") {
+    val goalName = name.ifBlank { "New goal" }
     val newId = "g-${System.currentTimeMillis()}"
-    val newGoal = GoalModel(
-      id = newId,
-      name = "New goal",
-      status = "Active",
-      deadline = "—",
-      aggregatedProgress = 0f,
-      aggregatedProgressText = "0%",
-    )
+    val newGoal = GoalModel(id = newId, name = goalName, status = "Active", deadline = "—")
     _uiState.update { state ->
       state.copy(
         goals = listOf(newGoal) + state.goals,
@@ -1579,7 +1574,7 @@ class MyDayViewModel : ViewModel() {
     if (repo.isRemote) {
       viewModelScope.launch {
         try {
-          repo.createGoal("New goal")?.let { realId ->
+          repo.createGoal(goalName)?.let { realId ->
             _uiState.update { s ->
               s.copy(
                 goals = s.goals.map { if (it.id == newId) it.copy(id = realId) else it },
