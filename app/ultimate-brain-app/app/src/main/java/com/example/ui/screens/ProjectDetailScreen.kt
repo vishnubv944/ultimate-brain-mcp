@@ -176,7 +176,9 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
         }
       }
 
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == project.id) {
+      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == project.id &&
+        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+      ) {
         item {
           SectionHeader("About", modifier = Modifier.padding(horizontal = TodayPad))
           MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))

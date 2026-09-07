@@ -51,13 +51,15 @@ private fun sanitizeNotionMarkdown(raw: String): String {
   // Un-escape Notion's backslash-escaped punctuation (\|  \_  \*  \#  \- …).
   s = Regex("""\\([\\`*_{}\[\]()#+\-.!|<>~])""").replace(s) { it.groupValues[1] }
 
-  // <database url="U" ...>View: Tasks</database>  ->  a "📊 Tasks" link line
-  s = Regex("""<database\b(?:[^>]*\burl="([^"]*)")?[^>]*>\s*(?:View:\s*)?([^<]*)</database>""", RegexOption.IGNORE_CASE)
-    .replace(s) { m ->
-      val url = m.groupValues[1].trim()
-      val label = m.groupValues[2].trim().ifBlank { "Linked database" }
-      if (url.startsWith("http")) "\n[📊 $label]($url)\n" else "\n📊 $label\n"
-    }
+  // Embedded / linked database views (`<database>`, `<child_database>`, …).
+  // These are collection views baked into the page template — the app already
+  // renders the real linked Tasks / Notes / etc. as their own sections, so the
+  // view here is just noise. Drop it entirely.
+  s = Regex(
+    """<(?:child[_-])?(?:linked[_-])?database\b[^>]*>[\s\S]*?</(?:child[_-])?(?:linked[_-])?database>""",
+    RegexOption.IGNORE_CASE,
+  ).replace(s, "")
+  s = Regex("""<(?:child[_-])?(?:linked[_-])?database\b[^>]*/?>""", RegexOption.IGNORE_CASE).replace(s, "")
 
   // <callout icon="X">TEXT</callout>  ->  > X TEXT
   s = Regex("""<callout\b(?:[^>]*\bicon="([^"]*)")?[^>]*>([\s\S]*?)</callout>""", RegexOption.IGNORE_CASE)
@@ -98,8 +100,29 @@ private fun sanitizeNotionMarkdown(raw: String): String {
   s = Regex("""\(/([0-9a-f]{16,})(?:\?[^)]*)?\)""").replace(s) { "(https://www.notion.so/${it.groupValues[1]})" }
   s = Regex("""\((https://(?:www\.)?notion\.so/[^)?]+)\?[^)]*\)""").replace(s) { "(${it.groupValues[1]})" }
 
+  // Drop "nav chrome" lines — a row that is nothing but page links (and maybe a
+  // leading label like "Nav") separated by pipes. UB templates put one at the
+  // top of every project / goal page; it's not content.
+  s = s.split("\n").filterNot { line ->
+    val stripped = line
+      .replace(Regex("""\[[^\]]*]\([^)]*\)"""), "")
+      .replace(Regex("""[|·*_#>`~\-]"""), "")
+      .trim()
+    val hadLink = Regex("""\[[^\]]*]\([^)]*\)""").containsMatchIn(line)
+    hadLink && (stripped.isEmpty() || stripped.equals("nav", ignoreCase = true))
+  }.joinToString("\n")
+
   return s.replace(Regex("""\n{3,}"""), "\n\n").trim()
 }
+
+/**
+ * True when [raw] contains actual prose/list/quote content worth showing —
+ * not just headings left behind after the template scaffolding (nav row,
+ * embedded database views, table of contents) is stripped out. Callers use
+ * this to hide an empty "About" section entirely.
+ */
+fun markdownHasRenderableContent(raw: String): Boolean =
+  parse(raw).any { it is Md.P || it is Md.Bullet || it is Md.Quote || it is Md.Code }
 
 private fun parse(markdown: String): List<Md> {
   val lines = sanitizeNotionMarkdown(markdown).split("\n")

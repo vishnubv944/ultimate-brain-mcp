@@ -174,7 +174,9 @@ fun BookDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       if (b.ownedFormats.isNotEmpty()) field("Formats", b.ownedFormats.joinToString(", "))
       if (b.shelf.isNotEmpty()) field("Shelf", b.shelf.joinToString(", "))
       if (b.description.isNotBlank()) { SectionHeader("Description"); Text(b.description, style = MaterialTheme.typography.bodyMedium) }
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == b.id) { SectionHeader("Notes"); MarkdownBody(uiState.detailBody!!) }
+      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == b.id &&
+        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+      ) { SectionHeader("Notes"); MarkdownBody(uiState.detailBody!!) }
       Spacer(Modifier.height(96.dp))
     }
   }
@@ -225,7 +227,9 @@ fun RecipeDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier)
       if (r.mealTimes.isNotEmpty()) field("Meal", r.mealTimes.joinToString(", "))
       field("URL", r.url)
       TextButton(onClick = { viewModel.toggleRecipeFavorite(r.id) }) { Text(if (r.favorite) "★ Favorited" else "☆ Add to favorites") }
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == r.id) { SectionHeader("Recipe"); MarkdownBody(uiState.detailBody!!) }
+      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == r.id &&
+        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+      ) { SectionHeader("Recipe"); MarkdownBody(uiState.detailBody!!) }
       Spacer(Modifier.height(96.dp))
     }
   }

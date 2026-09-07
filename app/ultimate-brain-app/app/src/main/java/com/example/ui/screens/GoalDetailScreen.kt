@@ -122,7 +122,9 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         }
       }
 
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == goal.id) {
+      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == goal.id &&
+        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+      ) {
         item {
           SectionHeader("Notes", modifier = Modifier.padding(horizontal = TodayPad))
           MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))
