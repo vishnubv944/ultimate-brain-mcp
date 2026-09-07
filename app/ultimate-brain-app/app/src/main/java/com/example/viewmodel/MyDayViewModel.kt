@@ -810,9 +810,32 @@ class MyDayViewModel : ViewModel() {
     if (session == null) return
     val elapsedSec = session.elapsedMs() / 1000
     _uiState.update { it.copy(focusedSecondsToday = it.focusedSecondsToday + elapsedSec) }
-    if (elapsedSec >= 60) {
+    // Log anything longer than a stray tap. Notion computes Duration from Start/End.
+    if (elapsedSec >= 10) {
       val endIso = java.time.Instant.now().toString()
-      remoteWrite { it.createWorkSession(session.taskId, session.taskName, session.startIso, endIso) }
+      // Optimistically show it in the History list right away.
+      val optimistic = WorkSessionModel(
+        id = "ws-${UUID.randomUUID().toString().take(6)}",
+        taskName = session.taskName,
+        taskId = session.taskId,
+        projectName = session.projectName.orEmpty(),
+        timeRange = "",
+        duration = "",
+        startIso = session.startIso,
+        endIso = endIso,
+        durationMinutes = (elapsedSec / 60).toInt(),
+      )
+      _uiState.update { it.copy(workSessions = listOf(optimistic) + it.workSessions) }
+      if (repo.isRemote) {
+        viewModelScope.launch {
+          try {
+            repo.createWorkSession(session.taskId, session.taskName, session.startIso, endIso)
+            loadLibrary()
+          } catch (e: Exception) {
+            _uiState.update { it.copy(syncError = e.message ?: "Could not save work session") }
+          }
+        }
+      }
     }
     _uiState.update { it.copy(snackbarMessage = SnackbarMessage.FocusSessionEnded) }
   }

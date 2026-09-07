@@ -129,7 +129,13 @@ class UbRepository(
     val alive = { p: NotionPage -> !p.archived && !p.inTrash }
     val bookTitles = bookPages.filter(alive).associate { it.id to (it.properties.prop("Title", "Name")?.plainTitle().orEmpty()) }
     val recipeNames = recipePages.filter(alive).associate { it.id to (it.properties.prop("Name")?.plainTitle().orEmpty()) }
-    val sessionPages = q(NotionConfig.workSessionsDsId, 3)
+    val sessionPages = if (NotionConfig.workSessionsDsId.isBlank()) emptyList() else try {
+      c.queryAll(
+        NotionConfig.workSessionsDsId,
+        sorts = listOf(mapOf("property" to "Start", "direction" to "descending")),
+        maxPages = 2,
+      )
+    } catch (_: Exception) { emptyList() }
     LibraryData(
       people = peoplePages.filter(alive).map { NotionMappers.toPerson(it) },
       books = bookPages.filter(alive).map { NotionMappers.toBook(it) },
