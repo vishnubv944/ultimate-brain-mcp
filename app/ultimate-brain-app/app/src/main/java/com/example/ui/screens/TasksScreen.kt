@@ -64,10 +64,7 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     }
   }
 
-  val filter = uiState.selectedTasksFilter
-  val options = remember(uiState.tasks, filter) {
-    TASK_FILTERS.map { (f, label) -> FilterOption(f, label, uiState.tasksFilterCount(f)) }
-  }
+  val selKey = uiState.selectedChipKey(com.example.model.FilterScope.TASKS)
 
   ScreenScaffold(
     title = "Tasks",
@@ -92,15 +89,11 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   ) { innerPadding ->
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
-        SegmentedFilter(
-          options = options,
-          selected = filter,
-          onSelect = viewModel::selectTasksFilter,
-        )
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.TASKS)
         Spacer(Modifier.height(4.dp))
       }
 
-      if (filter == TasksFilter.ALL) {
+      if (selKey == "ALL") {
         val overdue = uiState.tasks.filter { !it.isDone && DateUtils.bucket(it.due) == DateUtils.DueBucket.OVERDUE }
         val dueToday = uiState.tasks.filter { !it.isDone && DateUtils.bucket(it.due) == DateUtils.DueBucket.TODAY }
         val upcoming = uiState.tasks.filter {
@@ -113,7 +106,7 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         taskSection("Upcoming", upcoming, viewModel)
         taskSection("No date", noDate, viewModel)
       } else {
-        val list = uiState.tasksForFilter(filter)
+        val list = uiState.tasksMatching(selKey)
         if (list.isEmpty()) {
           item { EmptyLine("No tasks match this filter.", Modifier.padding(horizontal = TodayPad)) }
         } else {
@@ -121,7 +114,7 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         }
       }
 
-      if (filter == com.example.viewmodel.TasksFilter.DONE && !uiState.olderCompletedLoaded) {
+      if (selKey == "DONE" && !uiState.olderCompletedLoaded) {
         item {
           androidx.compose.material3.TextButton(
             onClick = { viewModel.loadOlderCompleted() },

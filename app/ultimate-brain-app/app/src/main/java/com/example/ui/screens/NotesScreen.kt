@@ -53,21 +53,7 @@ private val NOTE_FILTERS = listOf(
 @Composable
 fun NotesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val filter = uiState.selectedNoteFilter
-  val list = uiState.filteredNotes
-  val options = remember(uiState.notes) {
-    NOTE_FILTERS.map { (f, label) ->
-      val n = when (f) {
-        NoteFilter.ALL -> uiState.notes.size
-        NoteFilter.MEETING -> uiState.notes.count { it.type.equals("Meeting", true) }
-        NoteFilter.JOURNAL -> uiState.notes.count { it.type.equals("Journal", true) }
-        NoteFilter.IDEA -> uiState.notes.count { it.type.equals("Idea", true) }
-        NoteFilter.REFERENCE -> uiState.notes.count { it.type.equals("Reference", true) }
-        NoteFilter.BOOK -> uiState.notes.count { it.type.equals("Book", true) }
-      }
-      FilterOption(f, label, n)
-    }
-  }
+  val list = uiState.notesMatching(uiState.selectedChipKey(com.example.model.FilterScope.NOTES))
 
   ScreenScaffold(
     title = "Notes",
@@ -93,7 +79,7 @@ fun NotesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   ) { innerPadding ->
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
-        SegmentedFilter(options = options, selected = filter, onSelect = viewModel::selectNoteFilter)
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.NOTES)
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {

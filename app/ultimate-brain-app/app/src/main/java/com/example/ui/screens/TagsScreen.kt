@@ -43,16 +43,12 @@ private val TAG_FILTERS = listOf(
 @Composable
 fun TagsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val filter = uiState.selectedTagFilter
-  val list = uiState.filteredTags
-  val options = remember(uiState.tags) {
-    TAG_FILTERS.map { (f, label) -> FilterOption(f, label, uiState.tags.count { tagMatches(it, f) }) }
-  }
+  val list = uiState.tagsMatching(uiState.selectedChipKey(com.example.model.FilterScope.TAGS))
 
   DetailScaffold(title = "Tags & Areas", onBack = { viewModel.navigateBack() }, modifier = modifier) { pad ->
     LazyColumn(modifier = Modifier.padding(pad)) {
       item {
-        SegmentedFilter(options = options, selected = filter, onSelect = viewModel::selectTagFilter)
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.TAGS)
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {

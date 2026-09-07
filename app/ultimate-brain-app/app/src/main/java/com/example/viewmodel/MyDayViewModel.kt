@@ -7,11 +7,20 @@ import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.DateUtils
 import com.example.data.DummyData
+import com.example.data.FilterStore
 import com.example.data.UbRepository
+import com.example.domain.FilterEngine
+import com.example.domain.filterRow
 import com.example.focus.FocusController
 import com.example.focus.FocusSession
 import com.example.focus.FocusTimerService
+import com.example.model.ChipRowConfig
+import com.example.model.CustomFilter
 import com.example.model.DailyRitualPhase
+import com.example.model.FilterScope
+import com.example.model.customId
+import com.example.model.customKey
+import com.example.model.isCustomKey
 import com.example.model.GoalModel
 import com.example.model.MilestoneModel
 import com.example.model.NoteModel
@@ -247,6 +256,12 @@ data class MyDayUiState(
   val selectedTagId: String? = null,
   val selectedTagFilter: TagFilter = TagFilter.ALL,
 
+  // Customizable filter bars — user-defined filters + per-scope chip layout.
+  // Keyed by FilterScope.name. See FilterStore, FilterEngine, BuiltinFilters.
+  val customFilters: List<com.example.model.CustomFilter> = emptyList(),
+  val chipConfigs: Map<String, com.example.model.ChipRowConfig> = emptyMap(),
+  val selectedFilterKeys: Map<String, String> = emptyMap(),
+
   // Work Sessions State
   val workSessions: List<WorkSessionModel> = DummyData.workSessionsList,
   val activeSessionSeconds: Long = 0L,
@@ -350,6 +365,95 @@ data class MyDayUiState(
       TagFilter.ENTITIES -> tags.filter { it.type == "Entity" }
       TagFilter.ALL -> tags
     }
+
+  // ---- Unified, customizable filter bar -----------------------------------
+  // Built-in chips + user CustomFilters, arranged by a per-scope ChipRowConfig.
+
+  fun scopeCustomFilters(scope: FilterScope): List<CustomFilter> = customFilters.filter { it.scope == scope }
+
+  /** Chip keys to show, in order, after applying the user's layout. */
+  fun visibleChipKeys(scope: FilterScope): List<String> {
+    val cfg = chipConfigs[scope.name] ?: ChipRowConfig()
+    val natural = BuiltinFilters.keys(scope) + scopeCustomFilters(scope).map { customKey(it.id) }
+    val ordered =
+      if (cfg.order.isEmpty()) natural
+      else cfg.order.filter { it in natural } + natural.filterNot { it in cfg.order }
+    return ordered.filterNot { it in cfg.hidden }
+  }
+
+  fun selectedChipKey(scope: FilterScope): String {
+    val visible = visibleChipKeys(scope)
+    selectedFilterKeys[scope.name]?.let { if (it in visible) return it }
+    chipConfigs[scope.name]?.defaultKey?.let { if (it in visible) return it }
+    return visible.firstOrNull() ?: BuiltinFilters.keys(scope).first()
+  }
+
+  fun chipLabel(scope: FilterScope, key: String): String =
+    if (key.isCustomKey()) customFilters.firstOrNull { it.id == key.customId() }?.name ?: "Filter"
+    else BuiltinFilters.label(key)
+
+  private fun customFilterFor(scope: FilterScope, key: String): CustomFilter? =
+    if (key.isCustomKey()) customFilters.firstOrNull { it.id == key.customId() && it.scope == scope } else null
+
+  fun tasksMatching(key: String): List<Task> {
+    val cf = customFilterFor(FilterScope.TASKS, key)
+    val base =
+      if (cf != null) tasks.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else tasks.filter { BuiltinFilters.taskMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() }
+    else if (key == "DONE") base.sortedByDescending { it.completionDate ?: "" }
+    else base.sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
+  }
+
+  fun projectsMatching(key: String): List<ProjectModel> {
+    val cf = customFilterFor(FilterScope.PROJECTS, key)
+    val base =
+      if (cf != null) projects.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else projects.filter { BuiltinFilters.projectMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() }
+    else base.sortedWith(compareByDescending<ProjectModel> { it.status == "Doing" }.thenBy { it.name })
+  }
+
+  fun notesMatching(key: String): List<NoteModel> {
+    val cf = customFilterFor(FilterScope.NOTES, key)
+    val base =
+      if (cf != null) notes.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else notes.filter { BuiltinFilters.noteMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+  }
+
+  fun goalsMatching(key: String): List<GoalModel> {
+    val cf = customFilterFor(FilterScope.GOALS, key)
+    val base =
+      if (cf != null) goals.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else goals.filter { BuiltinFilters.goalMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+  }
+
+  fun tagsMatching(key: String): List<TagModel> {
+    val cf = customFilterFor(FilterScope.TAGS, key)
+    val base =
+      if (cf != null) tags.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else tags.filter { BuiltinFilters.tagMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+  }
+
+  fun milestonesMatching(key: String): List<MilestoneModel> {
+    val cf = customFilterFor(FilterScope.MILESTONES, key)
+    val base =
+      if (cf != null) milestones.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else milestones.filter { BuiltinFilters.milestoneMatches(key, it) }
+    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+  }
+
+  fun chipCount(scope: FilterScope, key: String): Int = when (scope) {
+    FilterScope.TASKS -> tasksMatching(key).size
+    FilterScope.PROJECTS -> projectsMatching(key).size
+    FilterScope.NOTES -> notesMatching(key).size
+    FilterScope.GOALS -> goalsMatching(key).size
+    FilterScope.TAGS -> tagsMatching(key).size
+    FilterScope.MILESTONES -> milestonesMatching(key).size
+  }
 
   // Global Search filtered results
   val globalSearchTasks: List<Task>
@@ -520,9 +624,59 @@ class MyDayViewModel : ViewModel() {
 
   init {
     startTimerLoop()
+    _uiState.update {
+      it.copy(customFilters = FilterStore.loadFilters(), chipConfigs = FilterStore.loadConfigs())
+    }
     if (repo.isRemote) {
       refreshFromNotion()
       loadLibrary()
+    }
+  }
+
+  // ---- Customizable filter bars ------------------------------------------
+
+  fun selectFilterKey(scope: FilterScope, key: String) {
+    _uiState.update { it.copy(selectedFilterKeys = it.selectedFilterKeys + (scope.name to key)) }
+  }
+
+  fun saveCustomFilter(filter: CustomFilter) {
+    _uiState.update { st ->
+      val next = st.customFilters.filterNot { it.id == filter.id } + filter
+      FilterStore.saveFilters(next)
+      st.copy(
+        customFilters = next,
+        selectedFilterKeys = st.selectedFilterKeys + (filter.scope.name to customKey(filter.id)),
+      )
+    }
+  }
+
+  fun deleteCustomFilter(scope: FilterScope, id: String) {
+    _uiState.update { st ->
+      val next = st.customFilters.filterNot { it.id == id }
+      FilterStore.saveFilters(next)
+      val key = customKey(id)
+      val cfg = st.chipConfigs[scope.name]
+      val nextConfigs =
+        if (cfg == null) st.chipConfigs
+        else st.chipConfigs + (scope.name to cfg.copy(
+          order = cfg.order.filterNot { it == key },
+          hidden = cfg.hidden - key,
+          defaultKey = cfg.defaultKey?.takeIf { it != key },
+        ))
+      FilterStore.saveConfigs(nextConfigs)
+      st.copy(
+        customFilters = next,
+        chipConfigs = nextConfigs,
+        selectedFilterKeys = st.selectedFilterKeys.filterNot { it.value == key },
+      )
+    }
+  }
+
+  fun saveChipConfig(scope: FilterScope, config: ChipRowConfig) {
+    _uiState.update { st ->
+      val next = st.chipConfigs + (scope.name to config)
+      FilterStore.saveConfigs(next)
+      st.copy(chipConfigs = next)
     }
   }
 

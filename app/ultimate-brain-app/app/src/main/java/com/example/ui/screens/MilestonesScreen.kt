@@ -34,16 +34,12 @@ private val MS_FILTERS = listOf(
 @Composable
 fun MilestonesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val filter = uiState.selectedMilestoneFilter
-  val list = uiState.filteredMilestones
-  val options = remember(uiState.milestones) {
-    MS_FILTERS.map { (f, label) -> FilterOption(f, label, uiState.milestones.count { msMatches(it, f) }) }
-  }
+  val list = uiState.milestonesMatching(uiState.selectedChipKey(com.example.model.FilterScope.MILESTONES))
 
   DetailScaffold(title = "Milestones", onBack = { viewModel.navigateBack() }, modifier = modifier) { pad ->
     LazyColumn(modifier = Modifier.padding(pad)) {
       item {
-        SegmentedFilter(options = options, selected = filter, onSelect = viewModel::selectMilestoneFilter)
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.MILESTONES)
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {

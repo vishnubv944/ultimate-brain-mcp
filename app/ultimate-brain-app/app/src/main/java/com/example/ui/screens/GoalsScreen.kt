@@ -47,13 +47,7 @@ private val GOAL_FILTERS = listOf(
 @Composable
 fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val filter = uiState.selectedGoalFilter
-  val list = uiState.filteredGoals
-  val options = remember(uiState.goals) {
-    GOAL_FILTERS.map { (f, label) ->
-      FilterOption(f, label, uiState.goals.count { goalMatchesFilter(it, f) })
-    }
-  }
+  val list = uiState.goalsMatching(uiState.selectedChipKey(com.example.model.FilterScope.GOALS))
   val active = uiState.goals.count { it.status == "Active" }
   val achieved = uiState.goals.count { it.status == "Achieved" }
   var showCreate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -86,7 +80,7 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           ),
           Modifier.padding(horizontal = TodayPad),
         )
-        SegmentedFilter(options = options, selected = filter, onSelect = viewModel::selectGoalFilter)
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.GOALS)
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {

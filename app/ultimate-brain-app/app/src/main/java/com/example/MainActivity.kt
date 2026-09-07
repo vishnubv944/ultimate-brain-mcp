@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+    com.example.data.FilterStore.init(this)
 
     // Focus-timer notification permission (Android 13+). Asked once up front so
     // the ongoing timer notification can actually show.

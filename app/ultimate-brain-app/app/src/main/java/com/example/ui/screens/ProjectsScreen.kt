@@ -51,11 +51,7 @@ private val PROJECT_FILTERS = listOf(
 @Composable
 fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val filter = uiState.selectedProjectFilter
-  val list = uiState.filteredProjects
-  val options = remember(uiState.projects, filter) {
-    PROJECT_FILTERS.map { (f, label) -> FilterOption(f, label, uiState.projectFilterCount(f)) }
-  }
+  val list = uiState.projectsMatching(uiState.selectedChipKey(com.example.model.FilterScope.PROJECTS))
   var showCreate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
   if (showCreate) com.example.ui.components.NameDialog("project", { showCreate = false }) { viewModel.createNewProject(it) }
 
@@ -83,7 +79,7 @@ fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   ) { innerPadding ->
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
-        SegmentedFilter(options = options, selected = filter, onSelect = viewModel::selectProjectFilter)
+        com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.PROJECTS)
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {
