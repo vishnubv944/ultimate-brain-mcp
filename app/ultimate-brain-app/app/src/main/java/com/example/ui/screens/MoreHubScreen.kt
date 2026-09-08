@@ -57,9 +57,7 @@ fun MoreHubScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
 
   val productivity = listOf(
     HubEntry(Icons.Default.TrackChanges, cs.entityGoals, "Goals",
-      "${uiState.goals.count { !it.isArchived && it.status != "Achieved" }} active", AppScreen.GOALS),
-    HubEntry(Icons.Default.Flag, cs.entityProjects, "Milestones",
-      "${uiState.milestones.size}", AppScreen.MILESTONES),
+      "${uiState.goals.count { !it.isArchived && it.status != "Achieved" }} active · milestones inside", AppScreen.GOALS),
     HubEntry(Icons.Default.Tag, cs.entityTagArea, "Tags & Areas",
       "${uiState.tags.size} tags", AppScreen.TAGS),
     HubEntry(Icons.Default.Timelapse, cs.primary, "Work sessions",

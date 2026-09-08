@@ -1,14 +1,22 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -17,9 +25,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.example.data.DateUtils
 import com.example.ui.components.DetailScaffold
 import com.example.ui.components.EmptyLine
 import com.example.ui.components.EntityRow
@@ -119,6 +130,50 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(horizontal = TodayPad),
           )
           if (i < goal.linkedProjects.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
+        }
+      }
+
+      val goalMilestones = uiState.milestones
+        .filter { it.goalId == goal.id }
+        .sortedBy { it.targetDateIso ?: "9999-99-99" }
+      if (goalMilestones.isNotEmpty()) {
+        item {
+          SectionHeader(
+            "Milestones",
+            goalMilestones.count { it.status == "Completed" },
+            Modifier.padding(horizontal = TodayPad),
+          )
+        }
+        itemsIndexed(goalMilestones, key = { _, m -> m.id }) { i, ms ->
+          val done = ms.status == "Completed"
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { viewModel.toggleMilestoneStatus(ms.id) }
+              .padding(horizontal = TodayPad, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+              contentDescription = null,
+              tint = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+              modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+              Text(
+                ms.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                textDecoration = if (done) TextDecoration.LineThrough else null,
+              )
+              val date = ms.targetDateIso?.substringBefore('T')?.let { DateUtils.displayLabel(it) }
+              if (date != null) {
+                Text(date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+            }
+          }
+          if (i < goalMilestones.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
         }
       }
 
