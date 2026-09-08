@@ -84,7 +84,14 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {
-        item { EmptyLine("No goals here.", Modifier.padding(horizontal = TodayPad)) }
+        item {
+          EmptyLine(
+            "No goals in this view yet.",
+            Modifier.padding(horizontal = TodayPad),
+            actionLabel = "New goal",
+            onAction = { showCreate = true },
+          )
+        }
       } else {
         itemsIndexed(list, key = { _, g -> g.id }) { index, goal ->
           EntityRow(

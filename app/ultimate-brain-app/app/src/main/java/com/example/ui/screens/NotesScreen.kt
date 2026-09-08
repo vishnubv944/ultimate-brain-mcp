@@ -83,7 +83,14 @@ fun NotesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {
-        item { EmptyLine("No notes here yet.", Modifier.padding(horizontal = TodayPad)) }
+        item {
+          EmptyLine(
+            "No notes in this view yet.",
+            Modifier.padding(horizontal = TodayPad),
+            actionLabel = "New note",
+            onAction = { viewModel.createNewNote() },
+          )
+        }
       } else {
         itemsIndexed(list, key = { _, n -> n.id }) { index, note ->
           EntityRow(

@@ -108,7 +108,14 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       } else {
         val list = uiState.tasksMatching(selKey)
         if (list.isEmpty()) {
-          item { EmptyLine("No tasks match this filter.", Modifier.padding(horizontal = TodayPad)) }
+          item {
+            EmptyLine(
+              if (selKey == "DONE") "Nothing completed here yet." else "Nothing matches this filter right now.",
+              Modifier.padding(horizontal = TodayPad),
+              actionLabel = if (selKey == "DONE") null else "New task",
+              onAction = if (selKey == "DONE") null else ({ viewModel.setQuickAddOpen(true) }),
+            )
+          }
         } else {
           taskRows(list, viewModel)
         }

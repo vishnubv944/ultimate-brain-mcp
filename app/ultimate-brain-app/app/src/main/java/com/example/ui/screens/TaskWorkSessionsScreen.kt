@@ -241,7 +241,7 @@ private fun MonthBars(sessions: List<WorkSessionModel>) {
   }
   if (months.isEmpty()) return
   val maxV = (months.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
-  val barColor = MaterialTheme.colorScheme.tertiary
+  val barColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
   val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
   Surface(

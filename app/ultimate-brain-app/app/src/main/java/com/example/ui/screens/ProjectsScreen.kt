@@ -83,7 +83,14 @@ fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
       }
       if (list.isEmpty()) {
-        item { EmptyLine("No projects here.", Modifier.padding(horizontal = TodayPad)) }
+        item {
+          EmptyLine(
+            "No projects in this view yet.",
+            Modifier.padding(horizontal = TodayPad),
+            actionLabel = "New project",
+            onAction = { showCreate = true },
+          )
+        }
       } else {
         itemsIndexed(list, key = { _, p -> p.id }) { index, project ->
           EntityRow(
