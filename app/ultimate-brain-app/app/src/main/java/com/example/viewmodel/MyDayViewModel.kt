@@ -1124,6 +1124,27 @@ class MyDayViewModel : ViewModel() {
     remoteWrite { it.setTaskStatus(taskId, newStatus) }
   }
 
+  fun renameTask(taskId: String, name: String) {
+    val trimmed = name.trim()
+    if (trimmed.isBlank()) return
+    _uiState.update { s -> s.copy(tasks = s.tasks.map { if (it.id == taskId) it.copy(name = trimmed) else it }) }
+    remoteWrite { it.setPageTitle(taskId, "Name", trimmed) }
+  }
+
+  fun renameProject(projectId: String, name: String) {
+    val trimmed = name.trim()
+    if (trimmed.isBlank()) return
+    _uiState.update { s -> s.copy(projects = s.projects.map { if (it.id == projectId) it.copy(name = trimmed) else it }) }
+    remoteWrite { it.setPageTitle(projectId, "Name", trimmed) }
+  }
+
+  fun renameGoal(goalId: String, name: String) {
+    val trimmed = name.trim()
+    if (trimmed.isBlank()) return
+    _uiState.update { s -> s.copy(goals = s.goals.map { if (it.id == goalId) it.copy(name = trimmed) else it }) }
+    remoteWrite { it.setPageTitle(goalId, "Name", trimmed) }
+  }
+
   fun updateTaskPriority(taskId: String, newPriority: Priority?) {
     _uiState.update { state ->
       val updated = state.tasks.map { task ->

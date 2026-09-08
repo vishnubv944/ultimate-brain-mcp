@@ -218,6 +218,13 @@ class UbRepository(
     c.call { it.updatePage(taskId, mapOf("properties" to mapOf("Status" to mapOf("status" to mapOf("name" to name))))) }
   }
 
+  suspend fun setPageTitle(pageId: String, prop: String, title: String) {
+    val c = client ?: return
+    c.call {
+      it.updatePage(pageId, mapOf("properties" to mapOf(prop to mapOf("title" to listOf(mapOf("text" to mapOf("content" to title)))))))
+    }
+  }
+
   suspend fun setTaskMyDay(taskId: String, myDay: Boolean) {
     val c = client ?: return
     c.call { it.updatePage(taskId, mapOf("properties" to mapOf("My Day" to mapOf("checkbox" to myDay)))) }

@@ -108,38 +108,42 @@ fun TaskDetailScreen(
         .padding(horizontal = TodayPad),
     ) {
       Spacer(Modifier.height(8.dp))
-      Text(task.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-      Spacer(Modifier.height(12.dp))
+      com.example.ui.components.DetailTitle(task.name, { viewModel.renameTask(task.id, it) })
+      run {
+        val meta = buildList {
+          add(statusLabel(task.status))
+          if (task.isOverdue && task.dueDisplay.isNotBlank()) add("Overdue · ${task.dueDisplay}")
+          else if (task.dueDisplay.isNotBlank() && task.due != null) add(task.dueDisplay)
+          task.projectName?.let { add(it) }
+        }
+        if (meta.isNotEmpty()) {
+          Text(
+            meta.joinToString("  ·  "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (task.isOverdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+      Spacer(Modifier.height(10.dp))
 
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box {
-          FilterChip(
-            selected = true,
-            onClick = { statusMenu = true },
-            label = { Text(statusLabel(task.status)) },
-          )
-          DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
-            listOf(TaskStatus.TODO, TaskStatus.DOING, TaskStatus.DONE).forEach { s ->
-              DropdownMenuItem(text = { Text(statusLabel(s)) }, onClick = {
-                statusMenu = false; viewModel.updateTaskStatus(task.id, s)
-              })
-            }
-          }
-        }
-        Box {
-          FilterChip(
-            selected = task.priority != null,
-            onClick = { priorityMenu = true },
-            label = { Text(task.priority?.let { priorityLabel(it) } ?: "Priority") },
-          )
-          DropdownMenu(expanded = priorityMenu, onDismissRequest = { priorityMenu = false }) {
-            (listOf<Priority?>(Priority.HIGH, Priority.MEDIUM, Priority.LOW, null)).forEach { p ->
-              DropdownMenuItem(text = { Text(p?.let { priorityLabel(it) } ?: "None") }, onClick = {
-                priorityMenu = false; viewModel.updateTaskPriority(task.id, p)
-              })
-            }
-          }
-        }
+      com.example.ui.components.PropertyChipRow {
+        com.example.ui.components.SelectChip(
+          "Status", statusLabel(task.status),
+          listOf("To Do", "Doing", "Done"),
+          { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
+          allowClear = false,
+        )
+        com.example.ui.components.DateChip("Due", task.due) { viewModel.setTaskDueDate(task.id, it) }
+        com.example.ui.components.SelectChip(
+          "Project", task.projectName,
+          uiState.projects.filter { !it.isArchived }.map { it.name },
+          { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+        )
+        com.example.ui.components.SelectChip(
+          "Priority", task.priority?.let { priorityLabel(it) },
+          listOf("High", "Medium", "Low"),
+          { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
+        )
         FilterChip(
           selected = task.isMyDay,
           onClick = { viewModel.toggleMyDay(task.id) },
@@ -147,17 +151,7 @@ fun TaskDetailScreen(
         )
       }
 
-      SectionHeader("Details")
-      DateFieldRow("Due", task.due, { viewModel.setTaskDueDate(task.id, it) })
-      OptionRow(
-        "Project",
-        task.projectName,
-        uiState.projects.filter { !it.isArchived }.map { it.name },
-        { name ->
-          viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id)
-        },
-      )
-      // Time tracked — tier 1, it's a read you want at a glance.
+      // Time tracked — a quiet read.
       run {
         val logged = uiState.workSessions.filter { it.taskId == task.id }
         val mins = logged.sumOf { s -> s.durationMinutes ?: 0 }
@@ -383,8 +377,20 @@ private fun statusLabel(s: TaskStatus) = when (s) {
   TaskStatus.DONE -> "Done"
 }
 
+private fun statusFromLabel(l: String) = when (l) {
+  "Doing" -> TaskStatus.DOING
+  "Done" -> TaskStatus.DONE
+  else -> TaskStatus.TODO
+}
+
 private fun priorityLabel(p: Priority) = when (p) {
   Priority.HIGH -> "High"
   Priority.MEDIUM -> "Medium"
   Priority.LOW -> "Low"
+}
+
+private fun priorityFromLabel(l: String) = when (l) {
+  "High" -> Priority.HIGH
+  "Low" -> Priority.LOW
+  else -> Priority.MEDIUM
 }
