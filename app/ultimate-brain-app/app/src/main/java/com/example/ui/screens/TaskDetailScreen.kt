@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -155,44 +157,7 @@ fun TaskDetailScreen(
           viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id)
         },
       )
-      OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
-      OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
-      OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) })
-      OptionRow(
-        "Repeats", task.recurUnit,
-        uiState.optionsFor("task.Recur Unit", listOf("Day(s)", "Week(s)", "Month(s)", "Year(s)")),
-        { viewModel.setTaskRecurrence(task.id, it, task.recurInterval.coerceAtLeast(1)) },
-      )
-      if (task.recurUnit != null) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text("Every", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, (task.recurInterval - 1).coerceAtLeast(1)) }) { Text("−") }
-          Text("${task.recurInterval}", style = MaterialTheme.typography.bodyLarge)
-          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, task.recurInterval + 1) }) { Text("+") }
-          Text(task.recurUnit, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
-      if (task.recurUnit != null) {
-        val dayOpts = uiState.optionsFor(
-          "task.Days",
-          listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
-        )
-        Text("On days", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          dayOpts.forEach { d ->
-            FilterChip(
-              selected = d in task.recurDays,
-              onClick = { viewModel.toggleTaskRecurDay(task.id, d) },
-              label = { Text(d.take(3)) },
-            )
-          }
-        }
-      }
-
-      DateFieldRow("Snooze until", task.snoozeIso, { viewModel.setTaskSnooze(task.id, it) })
-      DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) })
-      OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) })
-
+      // Time tracked — tier 1, it's a read you want at a glance.
       run {
         val logged = uiState.workSessions.filter { it.taskId == task.id }
         val mins = logged.sumOf { s -> s.durationMinutes ?: 0 }
@@ -221,50 +186,119 @@ fun TaskDetailScreen(
         }
       }
 
-      // Labels (multi_select).
-      run {
-        val labelOpts = uiState.optionsFor("task.Labels", task.labels)
-        if (labelOpts.isNotEmpty()) {
-          Text("Labels", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-          Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            labelOpts.forEach { l ->
-              FilterChip(
-                selected = l in task.labels,
-                onClick = {
-                  val next = if (l in task.labels) task.labels - l else task.labels + l
-                  viewModel.setTaskLabelSet(task.id, next)
-                },
-                label = { Text(l) },
-              )
+      // Everything below is set-once-and-forget config — hidden until asked for.
+      var moreOpen by remember(task.id) { mutableStateOf(false) }
+      Row(
+        modifier = Modifier.fillMaxWidth().clickable { moreOpen = !moreOpen }.padding(top = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          "More details",
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.Medium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+          if (moreOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      androidx.compose.animation.AnimatedVisibility(visible = moreOpen) {
+        Column {
+          OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
+          OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
+          OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) })
+          OptionRow(
+            "Repeats", task.recurUnit,
+            uiState.optionsFor("task.Recur Unit", listOf("Day(s)", "Week(s)", "Month(s)", "Year(s)")),
+            { viewModel.setTaskRecurrence(task.id, it, task.recurInterval.coerceAtLeast(1)) },
+          )
+          if (task.recurUnit != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text("Every", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, (task.recurInterval - 1).coerceAtLeast(1)) }) { Text("−") }
+              Text("${task.recurInterval}", style = MaterialTheme.typography.bodyLarge)
+              androidx.compose.material3.TextButton(onClick = { viewModel.setTaskRecurrence(task.id, task.recurUnit, task.recurInterval + 1) }) { Text("+") }
+              Text(task.recurUnit, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val dayOpts = uiState.optionsFor(
+              "task.Days",
+              listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+            )
+            Text("On days", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              dayOpts.forEach { d ->
+                FilterChip(
+                  selected = d in task.recurDays,
+                  onClick = { viewModel.toggleTaskRecurDay(task.id, d) },
+                  label = { Text(d.take(3)) },
+                )
+              }
             }
           }
+
+          DateFieldRow("Snooze until", task.snoozeIso, { viewModel.setTaskSnooze(task.id, it) })
+          DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) })
+          OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) })
+
+          run {
+            val labelOpts = uiState.optionsFor("task.Labels", task.labels)
+            if (labelOpts.isNotEmpty()) {
+              Text("Labels", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+              Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                labelOpts.forEach { l ->
+                  FilterChip(
+                    selected = l in task.labels,
+                    onClick = {
+                      val next = if (l in task.labels) task.labels - l else task.labels + l
+                      viewModel.setTaskLabelSet(task.id, next)
+                    },
+                    label = { Text(l) },
+                  )
+                }
+              }
+            }
+          }
+
+          if (uiState.workspaceUsers.isNotEmpty()) {
+            Text("Assignee", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              uiState.workspaceUsers.forEach { (uid, uname) ->
+                FilterChip(
+                  selected = uid in task.assigneeIds,
+                  onClick = { viewModel.toggleTaskAssignee(task.id, uid, uname) },
+                  label = { Text(uname) },
+                )
+              }
+            }
+          }
+          if (uiState.people.isNotEmpty()) {
+            Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              uiState.people.forEach { person ->
+                FilterChip(
+                  selected = person.id in task.personIds,
+                  onClick = { viewModel.toggleTaskPerson(task.id, person.id) },
+                  label = { Text(person.name) },
+                )
+              }
+            }
+          }
+
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = task.enforceSchedule, onCheckedChange = { viewModel.setTaskEnforceSchedule(task.id, it) })
+            Text("Enforce schedule", style = MaterialTheme.typography.bodyMedium)
+          }
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = task.shoppingList, onCheckedChange = { viewModel.setTaskShoppingList(task.id, it) })
+            Text("Shopping list", style = MaterialTheme.typography.bodyMedium)
+          }
+          if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
         }
       }
 
-      if (uiState.workspaceUsers.isNotEmpty()) {
-        Text("Assignee", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          uiState.workspaceUsers.forEach { (uid, uname) ->
-            FilterChip(
-              selected = uid in task.assigneeIds,
-              onClick = { viewModel.toggleTaskAssignee(task.id, uid, uname) },
-              label = { Text(uname) },
-            )
-          }
-        }
-      }
-      if (uiState.people.isNotEmpty()) {
-        Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          uiState.people.forEach { person ->
-            FilterChip(
-              selected = person.id in task.personIds,
-              onClick = { viewModel.toggleTaskPerson(task.id, person.id) },
-              label = { Text(person.name) },
-            )
-          }
-        }
-      }
       if (task.noteIds.isNotEmpty()) {
         SectionHeader("Linked notes", task.noteIds.size)
         task.noteIds.forEach { nid ->
@@ -274,17 +308,6 @@ fun TaskDetailScreen(
           }
         }
       }
-
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Checkbox(checked = task.enforceSchedule, onCheckedChange = { viewModel.setTaskEnforceSchedule(task.id, it) })
-        Text("Enforce schedule", style = MaterialTheme.typography.bodyMedium)
-      }
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Checkbox(checked = task.shoppingList, onCheckedChange = { viewModel.setTaskShoppingList(task.id, it) })
-        Text("Shopping list", style = MaterialTheme.typography.bodyMedium)
-      }
-
-      if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
       if (task.projectName != null) {
         androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {
           Text("Open ${task.projectName}  →")
