@@ -1,8 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -69,61 +72,33 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         .padding(horizontal = TodayPad),
     ) {
       Spacer(Modifier.height(8.dp))
-      Text(note.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-      Spacer(Modifier.height(4.dp))
+      com.example.ui.components.DetailTitle(note.title, { viewModel.renameNote(note.id, it) })
       Text(
         buildList {
           add(note.type)
           note.projectName?.let { add(it) }
           if (note.date.isNotBlank() && note.date != "—") add(note.date)
         }.joinToString("  ·  "),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      com.example.ui.components.SectionHeader("Details")
-      com.example.ui.components.OptionRow(
-        "Type", note.type,
-        uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Voice Note", "Daily")),
-        { it?.let { t -> viewModel.setNoteType(note.id, t) } },
-        allowClear = false,
-      )
-      com.example.ui.components.DateFieldRow("Date", note.dateIso, { viewModel.setNoteDate(note.id, it) })
-      com.example.ui.components.DateFieldRow("Review date", note.reviewDateIso, { viewModel.setNoteReviewDate(note.id, it) })
-      com.example.ui.components.OptionRow(
-        "Project", note.projectName,
-        uiState.projects.map { it.name },
-        { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
-      )
-      run {
-        var urlDraft by androidx.compose.runtime.remember(note.id, note.url) { androidx.compose.runtime.mutableStateOf(note.url) }
-        androidx.compose.material3.OutlinedTextField(
-          value = urlDraft,
-          onValueChange = { urlDraft = it },
-          label = { Text("URL") },
-          singleLine = true,
-          modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+      Spacer(Modifier.height(8.dp))
+      com.example.ui.components.PropertyChipRow {
+        com.example.ui.components.SelectChip(
+          "Type", note.type,
+          uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Voice Note", "Daily")),
+          { it?.let { t -> viewModel.setNoteType(note.id, t) } },
+          allowClear = false,
         )
-        if (urlDraft != note.url) {
-          androidx.compose.material3.TextButton(onClick = { viewModel.setNoteUrl(note.id, urlDraft.trim()) }) { Text("Save URL") }
-        }
-      }
-      if (uiState.tags.isNotEmpty()) {
-        Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-        androidx.compose.foundation.layout.Row(
-          Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-          horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
-        ) {
-          uiState.tags.forEach { tag ->
-            androidx.compose.material3.FilterChip(
-              selected = tag.id in note.tagIds,
-              onClick = { viewModel.toggleNoteTag(note.id, tag.id) },
-              label = { Text(tag.name) },
-            )
-          }
-        }
+        com.example.ui.components.DateChip("Date", note.dateIso) { viewModel.setNoteDate(note.id, it) }
+        com.example.ui.components.SelectChip(
+          "Project", note.projectName,
+          uiState.projects.map { it.name },
+          { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+        )
       }
 
-      Spacer(Modifier.height(16.dp))
+      Spacer(Modifier.height(20.dp))
 
       when {
         uiState.detailBodyLoading -> {
@@ -136,6 +111,51 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           MarkdownBody(note.rawMarkdown)
         }
         else -> EmptyLine("This note has no content yet. Tap edit to add some.")
+      }
+
+      var infoOpen by androidx.compose.runtime.remember(note.id) { androidx.compose.runtime.mutableStateOf(false) }
+      androidx.compose.foundation.layout.Row(
+        modifier = Modifier.fillMaxWidth().clickable { infoOpen = !infoOpen }.padding(top = 28.dp, bottom = 4.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+      ) {
+        Text("Note info", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.weight(1f))
+        Icon(
+          if (infoOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      androidx.compose.animation.AnimatedVisibility(visible = infoOpen) {
+        Column {
+          com.example.ui.components.DateFieldRow("Review date", note.reviewDateIso, { viewModel.setNoteReviewDate(note.id, it) })
+          var urlDraft by androidx.compose.runtime.remember(note.id, note.url) { androidx.compose.runtime.mutableStateOf(note.url) }
+          androidx.compose.material3.OutlinedTextField(
+            value = urlDraft,
+            onValueChange = { urlDraft = it },
+            label = { Text("URL") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+          )
+          if (urlDraft != note.url) {
+            androidx.compose.material3.TextButton(onClick = { viewModel.setNoteUrl(note.id, urlDraft.trim()) }) { Text("Save URL") }
+          }
+          if (uiState.tags.isNotEmpty()) {
+            Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            androidx.compose.foundation.layout.Row(
+              Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+              horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+            ) {
+              uiState.tags.forEach { tag ->
+                androidx.compose.material3.FilterChip(
+                  selected = tag.id in note.tagIds,
+                  onClick = { viewModel.toggleNoteTag(note.id, tag.id) },
+                  label = { Text(tag.name) },
+                )
+              }
+            }
+          }
+        }
       }
       Spacer(Modifier.height(96.dp))
     }

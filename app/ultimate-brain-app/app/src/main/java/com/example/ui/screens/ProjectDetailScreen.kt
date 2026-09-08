@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,9 +56,9 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
     onBack = { viewModel.navigateBack() },
     modifier = modifier,
     actions = {
-      if (project != null) {
-        IconButton(onClick = { viewModel.openEditProject(project.id) }) {
-          Icon(Icons.Default.Edit, contentDescription = "Edit")
+      if (project != null && !project.isArchived) {
+        IconButton(onClick = { viewModel.archiveProject(project.id) }) {
+          Icon(Icons.Default.Archive, contentDescription = "Archive project")
         }
       }
     },
@@ -72,92 +75,102 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
         Spacer(Modifier.height(8.dp))
-        Text(
+        com.example.ui.components.DetailTitle(
           project.name,
-          style = MaterialTheme.typography.headlineSmall,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.padding(horizontal = TodayPad),
+          { viewModel.renameProject(project.id, it) },
+          Modifier.padding(horizontal = TodayPad),
         )
+        val meta = buildList {
+          add(project.status)
+          project.goalName?.let { add("toward: $it") }
+          if (project.deadline.isNotBlank() && project.deadline != "—") add(project.deadline)
+        }
         Text(
-          buildList {
-            add(project.status)
-            if (project.deadline.isNotBlank() && project.deadline != "—") add(project.deadline)
-            project.goalName?.let { add(it) }
-          }.joinToString("  ·  "),
-          style = MaterialTheme.typography.bodySmall,
+          meta.joinToString("  ·  "),
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = TodayPad),
         )
-        Spacer(Modifier.height(12.dp))
-        StatCard(
-          listOf(
-            Stat(done.size.toString(), "done"),
-            Stat(open.size.toString(), "open"),
-            Stat(project.progressText.ifBlank { "0%" }, "progress"),
-          ),
-          Modifier.padding(horizontal = TodayPad),
+        val pct = project.progress.coerceIn(0f, 1f)
+        androidx.compose.material3.LinearProgressIndicator(
+          progress = { pct },
+          modifier = Modifier.fillMaxWidth().padding(horizontal = TodayPad).padding(top = 10.dp),
+          trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
-        SectionHeader("Details", modifier = Modifier.padding(horizontal = TodayPad))
-        com.example.ui.components.OptionRow(
-          "Status", project.status,
-          uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
-          { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
-          Modifier.padding(horizontal = TodayPad), allowClear = false,
+        Text(
+          "${done.size} of ${done.size + open.size} tasks done" + if (project.progressText.isNotBlank()) "  ·  ${project.progressText}" else "",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(horizontal = TodayPad, vertical = 4.dp),
         )
-        com.example.ui.components.DateFieldRow(
-          "Deadline", project.deadlineIso,
-          { viewModel.setProjectDeadline(project.id, it) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        com.example.ui.components.OptionRow(
-          "Goal", project.goalName,
-          uiState.goals.map { it.name },
-          { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-
-        SectionHeader("Review notes", modifier = Modifier.padding(horizontal = TodayPad))
-        var reviewDraft by remember(project.id, project.reviewNotes) { mutableStateOf(project.reviewNotes) }
-        androidx.compose.material3.OutlinedTextField(
-          value = reviewDraft,
-          onValueChange = { reviewDraft = it },
-          placeholder = { androidx.compose.material3.Text("What's the current state / next review?") },
-          modifier = Modifier.fillMaxWidth().padding(horizontal = TodayPad, vertical = 4.dp),
-        )
-        if (reviewDraft != project.reviewNotes) {
-          androidx.compose.material3.TextButton(
-            onClick = { viewModel.setProjectReviewNotes(project.id, reviewDraft) },
-            modifier = Modifier.padding(horizontal = TodayPad - 12.dp),
-          ) { androidx.compose.material3.Text("Save review notes") }
+        Spacer(Modifier.height(8.dp))
+        com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
+          com.example.ui.components.SelectChip(
+            "Status", project.status,
+            uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
+            { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
+            allowClear = false,
+          )
+          com.example.ui.components.DateChip("Deadline", project.deadlineIso) { viewModel.setProjectDeadline(project.id, it) }
+          com.example.ui.components.SelectChip(
+            "Goal", project.goalName,
+            uiState.goals.map { it.name },
+            { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
+          )
         }
+      }
 
-        if (uiState.tags.isNotEmpty()) {
-          Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = TodayPad, top = 8.dp))
-          Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = TodayPad), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            uiState.tags.forEach { tag ->
-              FilterChip(
-                selected = tag.id in project.tagIds,
-                onClick = { viewModel.toggleProjectTag(project.id, tag.id) },
-                label = { Text(tag.name) },
-              )
+      section("Open tasks", open, viewModel)
+
+      item {
+        var infoOpen by remember(project.id) { mutableStateOf(false) }
+        Row(
+          modifier = Modifier.fillMaxWidth().clickable { infoOpen = !infoOpen }.padding(horizontal = TodayPad).padding(top = 22.dp, bottom = 4.dp),
+          verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+          Text("Project info", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          Spacer(Modifier.weight(1f))
+          Icon(
+            if (infoOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        androidx.compose.animation.AnimatedVisibility(visible = infoOpen) {
+          androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = TodayPad)) {
+            var reviewDraft by remember(project.id, project.reviewNotes) { mutableStateOf(project.reviewNotes) }
+            Text("Review notes", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+            androidx.compose.material3.OutlinedTextField(
+              value = reviewDraft,
+              onValueChange = { reviewDraft = it },
+              placeholder = { Text("What's the current state / next review?") },
+              modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            )
+            if (reviewDraft != project.reviewNotes) {
+              androidx.compose.material3.TextButton(onClick = { viewModel.setProjectReviewNotes(project.id, reviewDraft) }) {
+                Text("Save review notes")
+              }
             }
-          }
-        }
-        if (uiState.people.isNotEmpty()) {
-          Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = TodayPad, top = 8.dp))
-          Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = TodayPad), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            uiState.people.forEach { person ->
-              FilterChip(
-                selected = person.id in project.personIds,
-                onClick = { viewModel.toggleProjectPerson(project.id, person.id) },
-                label = { Text(person.name) },
-              )
+            if (uiState.tags.isNotEmpty()) {
+              Text("Tags", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+              Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                uiState.tags.forEach { tag ->
+                  FilterChip(selected = tag.id in project.tagIds, onClick = { viewModel.toggleProjectTag(project.id, tag.id) }, label = { Text(tag.name) })
+                }
+              }
+            }
+            if (uiState.people.isNotEmpty()) {
+              Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+              Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                uiState.people.forEach { person ->
+                  FilterChip(selected = person.id in project.personIds, onClick = { viewModel.toggleProjectPerson(project.id, person.id) }, label = { Text(person.name) })
+                }
+              }
             }
           }
         }
       }
 
-      section("Open tasks", open, viewModel)
       section("Done", done, viewModel)
 
       item { SectionHeader("Notes", notes.size, Modifier.padding(horizontal = TodayPad)) }

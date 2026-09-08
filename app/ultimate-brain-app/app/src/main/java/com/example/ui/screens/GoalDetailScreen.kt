@@ -71,14 +71,19 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
         Spacer(Modifier.height(8.dp))
-        Text(goal.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = TodayPad))
+        com.example.ui.components.DetailTitle(
+          goal.name,
+          { viewModel.renameGoal(goal.id, it) },
+          Modifier.padding(horizontal = TodayPad),
+        )
+        val meta = buildList {
+          add(goal.status)
+          if (goal.deadline.isNotBlank() && goal.deadline != "—") add(goal.deadline)
+          if (goal.tagArea.isNotBlank()) add(goal.tagArea)
+        }
         Text(
-          buildList {
-            add(goal.status)
-            if (goal.deadline.isNotBlank() && goal.deadline != "—") add(goal.deadline)
-            if (goal.tagArea.isNotBlank()) add(goal.tagArea)
-          }.joinToString("  ·  "),
-          style = MaterialTheme.typography.bodySmall,
+          meta.joinToString("  ·  "),
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = TodayPad),
         )
@@ -91,29 +96,22 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           ),
           Modifier.padding(horizontal = TodayPad),
         )
-        SectionHeader("Details", modifier = Modifier.padding(horizontal = TodayPad))
-        com.example.ui.components.OptionRow(
-          "Status", goal.status,
-          uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
-          { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
-          Modifier.padding(horizontal = TodayPad), allowClear = false,
-        )
-        com.example.ui.components.DateFieldRow(
-          "Deadline", goal.deadlineIso,
-          { viewModel.setGoalDeadline(goal.id, it) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        com.example.ui.components.DateFieldRow(
-          "Goal set", goal.goalSetIso,
-          { viewModel.setGoalSetDate(goal.id, it) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        com.example.ui.components.OptionRow(
-          "Area / Tag", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
-          uiState.tags.map { it.name },
-          { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
-          Modifier.padding(horizontal = TodayPad),
-        )
+        Spacer(Modifier.height(8.dp))
+        com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
+          com.example.ui.components.SelectChip(
+            "Status", goal.status,
+            uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
+            { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
+            allowClear = false,
+          )
+          com.example.ui.components.DateChip("Deadline", goal.deadlineIso) { viewModel.setGoalDeadline(goal.id, it) }
+          com.example.ui.components.DateChip("Goal set", goal.goalSetIso) { viewModel.setGoalSetDate(goal.id, it) }
+          com.example.ui.components.SelectChip(
+            "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
+            uiState.tags.map { it.name },
+            { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+          )
+        }
       }
 
       item { SectionHeader("Projects", goal.linkedProjects.size, Modifier.padding(horizontal = TodayPad)) }
