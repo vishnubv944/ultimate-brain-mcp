@@ -1,41 +1,60 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,21 +62,41 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.R
 import com.example.ui.components.BottomNavBar
 import com.example.ui.components.BottomNavDestination
-import com.example.ui.components.ExecutePane
-import com.example.ui.components.PlanPane
+import com.example.ui.components.EmptyLine
+import com.example.ui.components.FocusCard
 import com.example.ui.components.QuickAddBottomSheet
 import com.example.ui.components.SearchDialog
-import com.example.ui.components.WrapUpPane
+import com.example.ui.components.SectionHeader
+import com.example.ui.components.ShowMoreRow
+import com.example.ui.components.TaskRow
+import com.example.ui.components.ThinDivider
+import com.example.ui.components.TodayPad
+import com.example.ui.components.bottomNavHandler
+import com.example.ui.components.page
+import com.example.ui.components.rememberVisibleCount
 import com.example.ui.theme.success
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.MyDayViewModel
-import kotlinx.coroutines.launch
+import com.example.viewmodel.PlanFilter
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-private val TODAY_TABS = listOf("Plan", "Execute", "Wrap up")
+private val PLAN_FILTERS = listOf(
+  PlanFilter.TODAY to "Today",
+  PlanFilter.WEEK to "This week",
+  PlanFilter.OVERDUE to "Overdue",
+  PlanFilter.ACTIVE_PROJECTS to "Active projects",
+  PlanFilter.INBOX to "Inbox",
+  PlanFilter.RECURRING to "Recurring",
+)
 
+/**
+ * "Today" — one scrollable surface for the whole day: what you've committed to,
+ * what to pull in, and (at the bottom) the evening wrap-up. Replaces the old
+ * Plan / Execute / Wrap-up tab ceremony.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyDayScreen(
@@ -70,9 +109,6 @@ fun MyDayScreen(
   val focusSession by viewModel.focusSession.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val context = LocalContext.current
-  val scope = rememberCoroutineScope()
-
-  val pagerState = rememberPagerState(initialPage = 1, pageCount = { TODAY_TABS.size })
 
   LaunchedEffect(uiState.snackbarMessage) {
     uiState.snackbarMessage?.let { msg ->
@@ -81,16 +117,30 @@ fun MyDayScreen(
     }
   }
 
+  val shortlist = uiState.upNextTasks
+  val suggestions = uiState.planSuggestions
+  val doneToday = uiState.doneTodayTasks
+  val openCount = uiState.openTodayTasks.size
+  val browse = uiState.planBrowseTasks
+  val browseVisible = rememberVisibleCount(uiState.selectedPlanFilter)
+
+  var addOpen by remember { mutableStateOf(false) }
+  var doneOpen by remember { mutableStateOf(false) }
+
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
       Column {
         TopAppBar(
           title = {
-            Text(
-              text = "My Day",
-              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            )
+            Column {
+              Text("Today", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+              Text(
+                LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
           },
           navigationIcon = { ProfileAvatar() },
           actions = {
@@ -104,45 +154,13 @@ fun MyDayScreen(
               )
             }
           },
-          colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-          ),
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
         )
-        PrimaryTabRow(
-          selectedTabIndex = pagerState.currentPage,
-          containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-          TODAY_TABS.forEachIndexed { i, label ->
-            Tab(
-              selected = pagerState.currentPage == i,
-              onClick = { scope.launch { pagerState.animateScrollToPage(i) } },
-              selectedContentColor = MaterialTheme.colorScheme.primary,
-              unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-              text = {
-                Text(
-                  label,
-                  style = MaterialTheme.typography.titleSmall,
-                  fontWeight = if (pagerState.currentPage == i) FontWeight.SemiBold else FontWeight.Medium,
-                )
-              },
-            )
-          }
-        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
       }
     },
     bottomBar = {
-      BottomNavBar(
-        activeDestination = BottomNavDestination.TODAY,
-        onDestinationSelected = { dest ->
-          when (dest) {
-            BottomNavDestination.TODAY -> viewModel.navigateTo(AppScreen.TODAY)
-            BottomNavDestination.TASKS -> viewModel.navigateTo(AppScreen.TASKS)
-            BottomNavDestination.PROJECTS -> viewModel.navigateTo(AppScreen.PROJECTS)
-            BottomNavDestination.NOTES -> viewModel.navigateTo(AppScreen.NOTES)
-            BottomNavDestination.MORE -> viewModel.navigateTo(AppScreen.MORE_HUB)
-          }
-        },
-      )
+      BottomNavBar(activeDestination = BottomNavDestination.TODAY, onDestinationSelected = bottomNavHandler(viewModel))
     },
     floatingActionButton = {
       FloatingActionButton(
@@ -151,54 +169,202 @@ fun MyDayScreen(
         contentColor = MaterialTheme.colorScheme.onPrimary,
         shape = RoundedCornerShape(16.dp),
         elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-      ) {
-        Icon(Icons.Default.Add, contentDescription = "New task")
-      }
+      ) { Icon(Icons.Default.Add, contentDescription = "New task") }
     },
     snackbarHost = { SnackbarHost(snackbarHostState) },
     containerColor = MaterialTheme.colorScheme.background,
   ) { innerPadding ->
-    HorizontalPager(
-      state = pagerState,
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      key = { it },
-    ) { page ->
-      when (page) {
-        0 -> PlanPane(
-          onToday = uiState.onTodayTasks,
-          browse = uiState.planBrowseTasks,
-          selectedFilter = uiState.selectedPlanFilter,
-          filterCount = { uiState.planFilterCount(it) },
-          onSelectFilter = viewModel::selectPlanFilter,
-          onToggleToday = viewModel::toggleMyDay,
-          onToggleComplete = viewModel::toggleTaskCompletion,
-          onOpenTask = viewModel::openTaskDetail,
-          onAddTask = { viewModel.setQuickAddOpen(true) },
-          onStartFocusing = { scope.launch { pagerState.animateScrollToPage(1) } },
-        )
-        1 -> ExecutePane(
-          focusSession = focusSession,
-          upNext = uiState.upNextTasks,
-          doneToday = uiState.doneTodayTasks,
-          onStartFocus = { task -> viewModel.startFocus(context, task) },
-          onPauseFocus = { viewModel.pauseFocus(context) },
-          onResumeFocus = { viewModel.resumeFocus(context) },
-          onStopFocus = { viewModel.stopFocus(context) },
-          onToggleComplete = viewModel::toggleTaskCompletion,
-          onOpenTask = viewModel::openTaskDetail,
-          onGoToPlan = { scope.launch { pagerState.animateScrollToPage(0) } },
-        )
-        2 -> WrapUpPane(
-          doneCount = uiState.doneTodayTasks.size,
-          focusedSeconds = uiState.focusedSecondsToday,
-          openTasks = uiState.openTodayTasks,
-          onToggleComplete = viewModel::toggleTaskCompletion,
-          onMoveTaskTomorrow = viewModel::postponeOverdueTask,
-          onMoveAllTomorrow = viewModel::moveAllOpenToTomorrow,
-          onOpenTask = viewModel::openTaskDetail,
-          onWriteJournal = viewModel::openTodayJournal,
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(innerPadding)
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = TodayPad),
+    ) {
+      Spacer(Modifier.height(4.dp))
+
+      if (focusSession != null) {
+        Spacer(Modifier.height(12.dp))
+        FocusCard(
+          session = focusSession!!,
+          onPause = { viewModel.pauseFocus(context) },
+          onResume = { viewModel.resumeFocus(context) },
+          onStop = { viewModel.stopFocus(context) },
+          onOpenTask = { viewModel.openTaskDetail(focusSession!!.taskId) },
         )
       }
+
+      SectionHeader("On today", shortlist.size)
+      if (shortlist.isEmpty()) {
+        EmptyLine(
+          "Nothing planned for today yet.",
+          actionLabel = "Add a task",
+          onAction = { viewModel.setQuickAddOpen(true) },
+        )
+      } else {
+        shortlist.forEachIndexed { i, task ->
+          val active = focusSession?.taskId == task.id
+          TaskRow(
+            task = task,
+            onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+            onClick = { viewModel.openTaskDetail(task.id) },
+            trailing = {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                if (focusSession == null) {
+                  IconButton(onClick = { viewModel.startFocus(context, task) }) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Start focus", tint = MaterialTheme.colorScheme.primary)
+                  }
+                } else if (active) {
+                  Text(
+                    "focusing",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                  )
+                }
+                IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
+                  Icon(Icons.Default.Close, contentDescription = "Remove from today", modifier = Modifier.size(18.dp))
+                }
+              }
+            },
+          )
+          if (i < shortlist.lastIndex) ThinDivider()
+        }
+      }
+
+      if (suggestions.isNotEmpty()) {
+        SectionHeader("Suggested", suggestions.size)
+        suggestions.forEachIndexed { i, task ->
+          TaskRow(
+            task = task,
+            onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+            onClick = { viewModel.openTaskDetail(task.id) },
+            trailing = {
+              IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
+                Icon(Icons.Default.WbSunny, contentDescription = "Add to today", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+              }
+            },
+          )
+          if (i < suggestions.lastIndex) ThinDivider()
+        }
+      }
+
+      // ---- Add from your other lists (collapsed by default) ----
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { addOpen = !addOpen }
+          .padding(top = 26.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          "Add from your lists",
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.Medium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+          if (addOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      AnimatedVisibility(visible = addOpen) {
+        Column {
+          Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            PLAN_FILTERS.forEach { (filter, label) ->
+              val n = uiState.planFilterCount(filter)
+              FilterChip(
+                selected = uiState.selectedPlanFilter == filter,
+                onClick = { viewModel.selectPlanFilter(filter) },
+                label = { Text(if (n > 0) "$label  $n" else label) },
+              )
+            }
+          }
+          val onTodayIds = shortlist.map { it.id }.toSet()
+          if (browse.isEmpty()) {
+            EmptyLine("Nothing in this list right now.")
+          } else {
+            val shown = browse.page(browseVisible.intValue)
+            shown.forEachIndexed { i, task ->
+              val already = task.id in onTodayIds
+              TaskRow(
+                task = task,
+                onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+                onClick = { viewModel.openTaskDetail(task.id) },
+                trailing = {
+                  IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
+                    Icon(
+                      imageVector = if (already) Icons.Default.Check else Icons.Default.WbSunny,
+                      contentDescription = if (already) "On today" else "Add to today",
+                      tint = if (already) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                      modifier = Modifier.size(18.dp),
+                    )
+                  }
+                },
+              )
+              if (i < shown.lastIndex) ThinDivider()
+            }
+            ShowMoreRow(browse.size - browseVisible.intValue, browseVisible)
+          }
+        }
+      }
+
+      // ---- Evening wrap-up ----
+      Spacer(Modifier.height(28.dp))
+      WrapUpCard(
+        doneCount = doneToday.size,
+        focusedSeconds = uiState.focusedSecondsToday,
+        openCount = openCount,
+        onMoveAllTomorrow = { viewModel.moveAllOpenToTomorrow() },
+        onWriteJournal = { viewModel.openTodayJournal() },
+      )
+
+      if (doneToday.isNotEmpty()) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable { doneOpen = !doneOpen }
+            .padding(top = 26.dp, bottom = 6.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            "Done today",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          Spacer(Modifier.size(8.dp))
+          Text(
+            "${doneToday.size}",
+            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+          )
+          Spacer(Modifier.weight(1f))
+          Icon(
+            if (doneOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        AnimatedVisibility(visible = doneOpen) {
+          Column {
+            doneToday.forEachIndexed { i, task ->
+              TaskRow(
+                task = task,
+                onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+                onClick = { viewModel.openTaskDetail(task.id) },
+              )
+              if (i < doneToday.lastIndex) ThinDivider()
+            }
+          }
+        }
+      }
+
+      Spacer(Modifier.height(120.dp))
     }
   }
 
@@ -209,7 +375,6 @@ fun MyDayScreen(
       projects = uiState.projects,
     )
   }
-
   if (uiState.isSearchOpen) {
     SearchDialog(
       searchQuery = uiState.searchQuery,
@@ -218,6 +383,66 @@ fun MyDayScreen(
       onTaskClick = { task -> viewModel.openTaskDetail(task.id) },
       onDismiss = { viewModel.setSearchOpen(false) },
     )
+  }
+}
+
+@Composable
+private fun WrapUpCard(
+  doneCount: Int,
+  focusedSeconds: Long,
+  openCount: Int,
+  onMoveAllTomorrow: () -> Unit,
+  onWriteJournal: () -> Unit,
+) {
+  val h = focusedSeconds / 3600
+  val m = (focusedSeconds % 3600) / 60
+  val focusedLabel = if (h > 0) "${h}h ${m}m" else "${m}m"
+
+  Surface(
+    shape = RoundedCornerShape(20.dp),
+    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Column(Modifier.padding(18.dp)) {
+      Text(
+        "Wrap up",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Spacer(Modifier.height(10.dp))
+      Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        WrapStat(doneCount.toString(), "done")
+        WrapStat(focusedLabel, "focused")
+        WrapStat(openCount.toString(), "still open")
+      }
+      Spacer(Modifier.height(14.dp))
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (openCount > 0) {
+          TextButton(onClick = onMoveAllTomorrow) {
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text("  Move to tomorrow")
+          }
+        }
+        TextButton(onClick = onWriteJournal) {
+          Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp))
+          Text("  Journal")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun WrapStat(value: String, label: String) {
+  Column {
+    Text(
+      value,
+      style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 
