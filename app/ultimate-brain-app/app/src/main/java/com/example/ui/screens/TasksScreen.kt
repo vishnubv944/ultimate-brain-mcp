@@ -7,8 +7,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -66,6 +70,10 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
 
   val selKey = uiState.selectedChipKey(com.example.model.FilterScope.TASKS)
 
+  var calendarView by remember { mutableStateOf(false) }
+  var calMonth by remember { mutableStateOf(java.time.YearMonth.now()) }
+  var calSelected by remember { mutableStateOf(java.time.LocalDate.now()) }
+
   ScreenScaffold(
     title = "Tasks",
     viewModel = viewModel,
@@ -73,6 +81,12 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     modifier = modifier,
     snackbarHost = snackbarHostState,
     actions = {
+      IconButton(onClick = { calendarView = !calendarView }) {
+        Icon(
+          if (calendarView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.CalendarMonth,
+          contentDescription = if (calendarView) "List view" else "Calendar view",
+        )
+      }
       IconButton(onClick = { viewModel.setSearchOpen(true) }) {
         Icon(Icons.Default.Search, contentDescription = "Search")
       }
@@ -88,6 +102,41 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     },
   ) { innerPadding ->
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
+      if (calendarView) {
+        item("cal") {
+          com.example.ui.components.TaskCalendar(
+            tasks = uiState.tasks,
+            month = calMonth,
+            selected = calSelected,
+            onMonth = { calMonth = it },
+            onSelect = { calSelected = it },
+          )
+        }
+        item("cal-hdr") {
+          SectionHeader(
+            calSelected.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d")),
+            modifier = Modifier.padding(horizontal = TodayPad),
+          )
+        }
+        val dayTasks = uiState.tasks
+          .filter { !it.isDone && DateUtils.parseIsoDate(it.due) == calSelected }
+          .sortedByDescending { it.priority == com.example.model.Priority.HIGH }
+        if (dayTasks.isEmpty()) {
+          item("cal-empty") {
+            EmptyLine(
+              "Nothing due on this day.",
+              Modifier.padding(horizontal = TodayPad),
+              actionLabel = "Add for this day",
+              onAction = { viewModel.setQuickAddOpen(true) },
+            )
+          }
+        } else {
+          taskRows(dayTasks, viewModel, keyPrefix = "cal")
+        }
+        item("cal-bottom") { Spacer(Modifier.height(96.dp)) }
+        return@LazyColumn
+      }
+
       item {
         com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.TASKS)
         Spacer(Modifier.height(4.dp))
