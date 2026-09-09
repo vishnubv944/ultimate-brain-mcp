@@ -1,6 +1,6 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,14 +119,16 @@ fun MyDayScreen(
   }
 
   val shortlist = uiState.upNextTasks
-  val suggestions = uiState.planSuggestions
   val doneToday = uiState.doneTodayTasks
   val openCount = uiState.openTodayTasks.size
   val browse = uiState.planBrowseTasks
   val browseVisible = rememberVisibleCount(uiState.selectedPlanFilter)
+  val groupByProject = uiState.selectedPlanFilter == PlanFilter.ACTIVE_PROJECTS
+  val onTodayIds = shortlist.map { it.id }.toSet()
 
-  var addOpen by remember { mutableStateOf(false) }
   var doneOpen by remember { mutableStateOf(false) }
+  val projExpanded = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+  val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -175,35 +177,37 @@ fun MyDayScreen(
     snackbarHost = { SnackbarHost(snackbarHostState) },
     containerColor = MaterialTheme.colorScheme.background,
   ) { innerPadding ->
-    Column(
+    androidx.compose.foundation.lazy.LazyColumn(
+      state = listState,
       modifier = Modifier
         .fillMaxSize()
         .padding(innerPadding)
-        .verticalScroll(rememberScrollState())
         .padding(horizontal = TodayPad),
     ) {
-      Spacer(Modifier.height(4.dp))
-
       if (focusSession != null) {
-        Spacer(Modifier.height(12.dp))
-        FocusCard(
-          session = focusSession!!,
-          onPause = { viewModel.pauseFocus(context) },
-          onResume = { viewModel.resumeFocus(context) },
-          onStop = { viewModel.stopFocus(context) },
-          onOpenTask = { viewModel.openTaskDetail(focusSession!!.taskId) },
-        )
+        item("focus") {
+          Spacer(Modifier.height(12.dp))
+          FocusCard(
+            session = focusSession!!,
+            onPause = { viewModel.pauseFocus(context) },
+            onResume = { viewModel.resumeFocus(context) },
+            onStop = { viewModel.stopFocus(context) },
+            onOpenTask = { viewModel.openTaskDetail(focusSession!!.taskId) },
+          )
+        }
       }
 
-      SectionHeader("On today", shortlist.size)
+      item("ontoday-hdr") { SectionHeader("On today", shortlist.size) }
       if (shortlist.isEmpty()) {
-        EmptyLine(
-          "Nothing planned for today yet.",
-          actionLabel = "Add a task",
-          onAction = { viewModel.setQuickAddOpen(true) },
-        )
+        item("ontoday-empty") {
+          EmptyLine(
+            "Nothing planned yet — add from your lists below.",
+            actionLabel = "Add a task",
+            onAction = { viewModel.setQuickAddOpen(true) },
+          )
+        }
       } else {
-        shortlist.forEachIndexed { i, task ->
+        itemsIndexed(shortlist, key = { _, t -> "st:${t.id}" }) { i, task ->
           val active = focusSession?.taskId == task.id
           TaskRow(
             task = task,
@@ -216,11 +220,7 @@ fun MyDayScreen(
                     Icon(Icons.Default.PlayArrow, contentDescription = "Start focus", tint = MaterialTheme.colorScheme.primary)
                   }
                 } else if (active) {
-                  Text(
-                    "focusing",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                  )
+                  Text("focusing", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
                   Icon(Icons.Default.Close, contentDescription = "Remove from today", modifier = Modifier.size(18.dp))
@@ -232,97 +232,86 @@ fun MyDayScreen(
         }
       }
 
-      if (suggestions.isNotEmpty()) {
-        SectionHeader("Suggested", suggestions.size)
-        suggestions.forEachIndexed { i, task ->
-          TaskRow(
-            task = task,
-            onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
-            onClick = { viewModel.openTaskDetail(task.id) },
-            trailing = {
-              IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
-                Icon(Icons.Default.WbSunny, contentDescription = "Add to today", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-              }
-            },
-          )
-          if (i < suggestions.lastIndex) ThinDivider()
+      // ---- Add to today: always visible, the browse lists ----
+      item("add-hdr") {
+        Spacer(Modifier.height(4.dp))
+        SectionHeader("Add to today")
+      }
+      item("add-chips") {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          PLAN_FILTERS.forEach { (filter, label) ->
+            val n = uiState.planFilterCount(filter)
+            FilterChip(
+              selected = uiState.selectedPlanFilter == filter,
+              onClick = { viewModel.selectPlanFilter(filter) },
+              label = { Text(if (n > 0) "$label  $n" else label) },
+            )
+          }
         }
       }
 
-      // ---- Add from your other lists (collapsed by default) ----
-      com.example.ui.components.ExpanderHeader("Add from your lists", addOpen, { addOpen = !addOpen })
-      AnimatedVisibility(visible = addOpen) {
-        Column {
-          Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            PLAN_FILTERS.forEach { (filter, label) ->
-              val n = uiState.planFilterCount(filter)
-              FilterChip(
-                selected = uiState.selectedPlanFilter == filter,
-                onClick = { viewModel.selectPlanFilter(filter) },
-                label = { Text(if (n > 0) "$label  $n" else label) },
-              )
-            }
+      if (browse.isEmpty()) {
+        item("add-empty") { EmptyLine("Nothing in this list right now.") }
+      } else if (groupByProject) {
+        // Accordion: one collapsible header per project.
+        val grouped = browse.groupBy { it.projectName?.takeIf { n -> n.isNotBlank() } ?: "No project" }
+          .toList().sortedByDescending { it.second.size }
+        grouped.forEach { (proj, projTasks) ->
+          val expanded = projExpanded[proj] == true
+          item(key = "grp:$proj") {
+            com.example.ui.components.ExpanderHeader(
+              proj, expanded, { projExpanded[proj] = !expanded }, count = projTasks.size,
+            )
           }
-          val onTodayIds = shortlist.map { it.id }.toSet()
-          if (browse.isEmpty()) {
-            EmptyLine("Nothing in this list right now.")
-          } else {
-            val shown = browse.page(browseVisible.intValue)
-            shown.forEachIndexed { i, task ->
-              val already = task.id in onTodayIds
-              TaskRow(
-                task = task,
-                onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
-                onClick = { viewModel.openTaskDetail(task.id) },
-                trailing = {
-                  IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
-                    Icon(
-                      imageVector = if (already) Icons.Default.Check else Icons.Default.WbSunny,
-                      contentDescription = if (already) "On today" else "Add to today",
-                      tint = if (already) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                      modifier = Modifier.size(18.dp),
-                    )
-                  }
-                },
-              )
-              if (i < shown.lastIndex) ThinDivider()
+          if (expanded) {
+            itemsIndexed(projTasks, key = { _, t -> "gt:$proj:${t.id}" }) { i, task ->
+              BrowseTaskRow(task, task.id in onTodayIds, viewModel)
+              if (i < projTasks.lastIndex) ThinDivider(Modifier.padding(start = 44.dp))
             }
-            ShowMoreRow(browse.size - browseVisible.intValue, browseVisible)
           }
         }
+      } else {
+        val shown = browse.page(browseVisible.intValue)
+        itemsIndexed(shown, key = { _, t -> "bt:${t.id}" }) { i, task ->
+          BrowseTaskRow(task, task.id in onTodayIds, viewModel)
+          if (i < shown.lastIndex) ThinDivider()
+        }
+        item("showmore") { ShowMoreRow(browse.size - browseVisible.intValue, browseVisible) }
       }
 
       // ---- Wrap up ----
-      Spacer(Modifier.height(24.dp))
-      ThinDivider()
-      WrapUp(
-        doneCount = doneToday.size,
-        focusedSeconds = uiState.focusedSecondsToday,
-        openCount = openCount,
-        onMoveAllTomorrow = { viewModel.moveAllOpenToTomorrow() },
-        onWriteJournal = { viewModel.openTodayJournal() },
-      )
+      item("wrapup") {
+        Spacer(Modifier.height(24.dp))
+        ThinDivider()
+        WrapUp(
+          doneCount = doneToday.size,
+          focusedSeconds = uiState.focusedSecondsToday,
+          openCount = openCount,
+          onMoveAllTomorrow = { viewModel.moveAllOpenToTomorrow() },
+          onWriteJournal = { viewModel.openTodayJournal() },
+        )
+      }
 
       if (doneToday.isNotEmpty()) {
-        com.example.ui.components.ExpanderHeader("Done today", doneOpen, { doneOpen = !doneOpen }, count = doneToday.size)
-        AnimatedVisibility(visible = doneOpen) {
-          Column {
-            doneToday.forEachIndexed { i, task ->
-              TaskRow(
-                task = task,
-                onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
-                onClick = { viewModel.openTaskDetail(task.id) },
-              )
-              if (i < doneToday.lastIndex) ThinDivider()
-            }
+        item("done-hdr") {
+          com.example.ui.components.ExpanderHeader("Done today", doneOpen, { doneOpen = !doneOpen }, count = doneToday.size)
+        }
+        if (doneOpen) {
+          itemsIndexed(doneToday, key = { _, t -> "dt:${t.id}" }) { i, task ->
+            TaskRow(
+              task = task,
+              onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+              onClick = { viewModel.openTaskDetail(task.id) },
+            )
+            if (i < doneToday.lastIndex) ThinDivider()
           }
         }
       }
 
-      Spacer(Modifier.height(120.dp))
+      item("bottom") { Spacer(Modifier.height(120.dp)) }
     }
   }
 
@@ -342,6 +331,26 @@ fun MyDayScreen(
       onDismiss = { viewModel.setSearchOpen(false) },
     )
   }
+}
+
+/** A task row in the "Add to today" list — trailing sun toggles My Day in place. */
+@Composable
+private fun BrowseTaskRow(task: com.example.model.Task, onToday: Boolean, viewModel: MyDayViewModel) {
+  TaskRow(
+    task = task,
+    onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
+    onClick = { viewModel.openTaskDetail(task.id) },
+    trailing = {
+      IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
+        Icon(
+          imageVector = if (onToday) Icons.Default.Check else Icons.Default.WbSunny,
+          contentDescription = if (onToday) "On today" else "Add to today",
+          tint = if (onToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(18.dp),
+        )
+      }
+    },
+  )
 }
 
 @Composable
