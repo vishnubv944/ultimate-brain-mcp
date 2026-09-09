@@ -114,18 +114,7 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       }
 
       var infoOpen by androidx.compose.runtime.remember(note.id) { androidx.compose.runtime.mutableStateOf(false) }
-      androidx.compose.foundation.layout.Row(
-        modifier = Modifier.fillMaxWidth().clickable { infoOpen = !infoOpen }.padding(top = 28.dp, bottom = 4.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-      ) {
-        Text("Note info", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.weight(1f))
-        Icon(
-          if (infoOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
+      com.example.ui.components.ExpanderHeader("Note info", infoOpen, { infoOpen = !infoOpen })
       androidx.compose.animation.AnimatedVisibility(visible = infoOpen) {
         Column {
           com.example.ui.components.DateFieldRow("Review date", note.reviewDateIso, { viewModel.setNoteReviewDate(note.id, it) })

@@ -124,18 +124,10 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
 
       item {
         var infoOpen by remember(project.id) { mutableStateOf(false) }
-        Row(
-          modifier = Modifier.fillMaxWidth().clickable { infoOpen = !infoOpen }.padding(horizontal = TodayPad).padding(top = 22.dp, bottom = 4.dp),
-          verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-          Text("Project info", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          Spacer(Modifier.weight(1f))
-          Icon(
-            if (infoOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        com.example.ui.components.ExpanderHeader(
+          "Project info", infoOpen, { infoOpen = !infoOpen },
+          Modifier.padding(horizontal = TodayPad),
+        )
         androidx.compose.animation.AnimatedVisibility(visible = infoOpen) {
           androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = TodayPad)) {
             var reviewDraft by remember(project.id, project.reviewNotes) { mutableStateOf(project.reviewNotes) }

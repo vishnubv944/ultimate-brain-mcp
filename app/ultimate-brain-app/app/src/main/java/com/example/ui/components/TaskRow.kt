@@ -63,6 +63,7 @@ fun TaskRow(
   Row(
     modifier = modifier
       .fillMaxWidth()
+      .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
       .clickable(onClick = onClick)
       .heightIn(min = 56.dp)
       .padding(vertical = 6.dp),

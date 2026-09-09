@@ -249,26 +249,7 @@ fun MyDayScreen(
       }
 
       // ---- Add from your other lists (collapsed by default) ----
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clickable { addOpen = !addOpen }
-          .padding(top = 26.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          "Add from your lists",
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Medium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.weight(1f))
-        Icon(
-          if (addOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
+      com.example.ui.components.ExpanderHeader("Add from your lists", addOpen, { addOpen = !addOpen })
       AnimatedVisibility(visible = addOpen) {
         Column {
           Row(
@@ -324,32 +305,7 @@ fun MyDayScreen(
       )
 
       if (doneToday.isNotEmpty()) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { doneOpen = !doneOpen }
-            .padding(top = 26.dp, bottom = 6.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text(
-            "Done today",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-          Spacer(Modifier.size(8.dp))
-          Text(
-            "${doneToday.size}",
-            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-          )
-          Spacer(Modifier.weight(1f))
-          Icon(
-            if (doneOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        com.example.ui.components.ExpanderHeader("Done today", doneOpen, { doneOpen = !doneOpen }, count = doneToday.size)
         AnimatedVisibility(visible = doneOpen) {
           Column {
             doneToday.forEachIndexed { i, task ->

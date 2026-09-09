@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.Instant
@@ -49,8 +50,9 @@ fun OptionRow(
     Row(
       modifier = modifier
         .fillMaxWidth()
+        .clip(RoundedCornerShape(10.dp))
         .clickable { open = true }
-        .padding(vertical = 12.dp),
+        .padding(vertical = 12.dp, horizontal = 4.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))

@@ -182,23 +182,7 @@ fun TaskDetailScreen(
 
       // Everything below is set-once-and-forget config — hidden until asked for.
       var moreOpen by remember(task.id) { mutableStateOf(false) }
-      Row(
-        modifier = Modifier.fillMaxWidth().clickable { moreOpen = !moreOpen }.padding(top = 16.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          "More details",
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Medium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.weight(1f))
-        Icon(
-          if (moreOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
+      com.example.ui.components.ExpanderHeader("More details", moreOpen, { moreOpen = !moreOpen })
       androidx.compose.animation.AnimatedVisibility(visible = moreOpen) {
         Column {
           OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })

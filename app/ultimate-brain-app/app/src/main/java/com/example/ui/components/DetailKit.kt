@@ -5,15 +5,20 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -34,7 +39,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +99,51 @@ fun DetailTitle(
           if (draft.trim().isNotBlank() && draft.trim() != text) onCommit(draft.trim())
         }
       },
+    )
+  }
+}
+
+/**
+ * A tappable "Label ⌄" section toggle. Clipped to a rounded shape and inset a
+ * little so the press / hover highlight is a contained pill, not an edge-to-edge
+ * slab.
+ */
+@Composable
+fun ExpanderHeader(
+  label: String,
+  expanded: Boolean,
+  onToggle: () -> Unit,
+  modifier: Modifier = Modifier,
+  count: Int? = null,
+) {
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .padding(top = 12.dp)
+      .clip(RoundedCornerShape(10.dp))
+      .clickable(onClick = onToggle)
+      .padding(vertical = 10.dp, horizontal = 4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      label,
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Medium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (count != null) {
+      Spacer(Modifier.width(8.dp))
+      Text(
+        count.toString(),
+        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+      )
+    }
+    Spacer(Modifier.weight(1f))
+    Icon(
+      if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
     )
   }
 }

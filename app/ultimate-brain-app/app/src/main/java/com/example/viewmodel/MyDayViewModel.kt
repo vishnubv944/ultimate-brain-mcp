@@ -493,8 +493,14 @@ data class MyDayUiState(
   val todoTasks: List<Task>
     get() = tasks.filter { it.isMyDay && it.status == TaskStatus.TODO && !it.isDone }
 
+  /** Tasks actually completed *today* — not the whole loaded completion history. */
   val doneTodayTasks: List<Task>
-    get() = tasks.filter { it.isDone }
+    get() {
+      val today = java.time.LocalDate.now().toString()
+      return tasks.filter { t ->
+        t.isDone && (t.completionDate == "Today" || t.completionDate?.substringBefore('T') == today)
+      }
+    }
 
   val overdueTasks: List<Task>
     get() = tasks.filter { DateUtils.bucket(it.due) == DateUtils.DueBucket.OVERDUE && !it.isDone }

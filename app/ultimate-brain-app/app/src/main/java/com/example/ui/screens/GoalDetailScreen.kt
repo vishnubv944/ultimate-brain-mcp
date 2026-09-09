@@ -25,8 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -147,8 +149,10 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           Row(
             modifier = Modifier
               .fillMaxWidth()
+              .padding(horizontal = TodayPad - 4.dp)
+              .clip(RoundedCornerShape(10.dp))
               .clickable { viewModel.toggleMilestoneStatus(ms.id) }
-              .padding(horizontal = TodayPad, vertical = 10.dp),
+              .padding(horizontal = 4.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Icon(
