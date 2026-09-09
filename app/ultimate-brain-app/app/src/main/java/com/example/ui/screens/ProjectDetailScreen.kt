@@ -14,8 +14,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,13 +109,18 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
         Spacer(Modifier.height(8.dp))
         com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
           com.example.ui.components.SelectChip(
+            Icons.Outlined.CheckCircle,
             "Status", project.status,
             uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
             { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
             allowClear = false,
           )
-          com.example.ui.components.DateChip("Deadline", project.deadlineIso) { viewModel.setProjectDeadline(project.id, it) }
+          com.example.ui.components.DateChip(
+            Icons.Default.Event,
+            "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
+          )
           com.example.ui.components.SelectChip(
+            Icons.Default.TrackChanges,
             "Goal", project.goalName,
             uiState.goals.map { it.name },
             { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },

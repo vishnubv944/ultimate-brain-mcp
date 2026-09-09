@@ -17,15 +17,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -109,37 +115,29 @@ fun TaskDetailScreen(
     ) {
       Spacer(Modifier.height(8.dp))
       com.example.ui.components.DetailTitle(task.name, { viewModel.renameTask(task.id, it) })
-      run {
-        val meta = buildList {
-          add(statusLabel(task.status))
-          if (task.isOverdue && task.dueDisplay.isNotBlank()) add("Overdue · ${task.dueDisplay}")
-          else if (task.dueDisplay.isNotBlank() && task.due != null) add(task.dueDisplay)
-          task.projectName?.let { add(it) }
-        }
-        if (meta.isNotEmpty()) {
-          Text(
-            meta.joinToString("  ·  "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (task.isOverdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
-      Spacer(Modifier.height(10.dp))
+      Spacer(Modifier.height(8.dp))
 
       com.example.ui.components.PropertyChipRow {
         com.example.ui.components.SelectChip(
+          Icons.Outlined.CheckCircle,
           "Status", statusLabel(task.status),
           listOf("To Do", "Doing", "Done"),
           { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
           allowClear = false,
         )
-        com.example.ui.components.DateChip("Due", task.due) { viewModel.setTaskDueDate(task.id, it) }
+        com.example.ui.components.DateChip(
+          Icons.Default.Event,
+          "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
+          overdue = task.isOverdue,
+        )
         com.example.ui.components.SelectChip(
+          Icons.Default.Folder,
           "Project", task.projectName,
           uiState.projects.filter { !it.isArchived }.map { it.name },
           { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
         )
         com.example.ui.components.SelectChip(
+          Icons.Outlined.Flag,
           "Priority", task.priority?.let { priorityLabel(it) },
           listOf("High", "Medium", "Low"),
           { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
@@ -148,6 +146,7 @@ fun TaskDetailScreen(
           selected = task.isMyDay,
           onClick = { viewModel.toggleMyDay(task.id) },
           label = { Text("My Day") },
+          leadingIcon = { Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp)) },
         )
       }
 
@@ -292,57 +291,86 @@ fun TaskDetailScreen(
         }
       }
 
-      SectionHeader("Description")
-      OutlinedTextField(
-        value = descDraft,
-        onValueChange = { descDraft = it },
-        placeholder = { Text("Add a description") },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-      )
-      if (descDraft != task.description) {
-        androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft) }) {
-          Text("Save description")
-        }
-      }
-
-      // Sub-tasks
-      SectionHeader("Sub-tasks", task.subTasks.size)
-      task.subTasks.forEach { st ->
-        Row(
-          modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleSubTask(task.id, st.id) }.padding(vertical = 6.dp),
-          verticalAlignment = Alignment.CenterVertically,
+      // Description — no empty box: a quiet "＋" prompt until there's text.
+      Spacer(Modifier.height(12.dp))
+      var descEditing by remember(task.id) { mutableStateOf(false) }
+      if (task.description.isBlank() && !descEditing && descDraft.isBlank()) {
+        androidx.compose.material3.TextButton(
+          onClick = { descEditing = true },
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
         ) {
-          Icon(
-            if (st.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-            contentDescription = null,
-            tint = if (st.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(20.dp),
-          )
-          Spacer(Modifier.size(10.dp))
-          Text(
-            st.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (st.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-          )
+          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.size(6.dp))
+          Text("Add description")
+        }
+      } else {
+        OutlinedTextField(
+          value = descDraft,
+          onValueChange = { descDraft = it },
+          placeholder = { Text("Description") },
+          modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        )
+        if (descDraft != task.description) {
+          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft); descEditing = false }) {
+            Text("Save")
+          }
         }
       }
-      OutlinedTextField(
-        value = newSubtask,
-        onValueChange = { newSubtask = it },
-        placeholder = { Text("Add a sub-task") },
-        singleLine = true,
-        keyboardActions = KeyboardActions(onDone = {
-          if (newSubtask.isNotBlank()) { viewModel.addSubTask(task.id, newSubtask.trim()); newSubtask = "" }
-        }),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-      )
 
-      // Notes — the real Notion page body.
-      SectionHeader("Notes")
-      when {
-        uiState.detailBodyLoading -> Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        !uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == task.id -> MarkdownBody(uiState.detailBody!!)
-        else -> EmptyLine("No notes on this task.")
+      // Sub-tasks — a checklist; a quiet "＋" prompt when there are none.
+      var addingSub by remember(task.id) { mutableStateOf(false) }
+      if (task.subTasks.isEmpty() && !addingSub) {
+        androidx.compose.material3.TextButton(
+          onClick = { addingSub = true },
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+        ) {
+          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.size(6.dp))
+          Text("Add subtask")
+        }
+      } else {
+        SectionHeader(
+          "Subtasks " + task.subTasks.count { it.isCompleted } + "/" + task.subTasks.size,
+        )
+        task.subTasks.forEach { st ->
+          Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+              .clickable { viewModel.toggleSubTask(task.id, st.id) }.padding(vertical = 6.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Icon(
+              if (st.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+              contentDescription = null,
+              tint = if (st.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+              modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+              st.name,
+              style = MaterialTheme.typography.bodyMedium,
+              color = if (st.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            )
+          }
+        }
+        OutlinedTextField(
+          value = newSubtask,
+          onValueChange = { newSubtask = it },
+          placeholder = { Text("New subtask") },
+          singleLine = true,
+          keyboardActions = KeyboardActions(onDone = {
+            if (newSubtask.isNotBlank()) { viewModel.addSubTask(task.id, newSubtask.trim()); newSubtask = "" }
+          }),
+          modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        )
+      }
+
+      // Notes — the Notion page body, only when there is one.
+      if (uiState.detailBodyLoading) {
+        Spacer(Modifier.height(12.dp))
+        Text("Loading notes…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      } else if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == task.id) {
+        SectionHeader("Notes")
+        MarkdownBody(uiState.detailBody!!)
       }
       Spacer(Modifier.height(120.dp))
     }

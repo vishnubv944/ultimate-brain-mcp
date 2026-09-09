@@ -14,9 +14,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -101,14 +105,22 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
         com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
           com.example.ui.components.SelectChip(
+            Icons.Outlined.CheckCircle,
             "Status", goal.status,
             uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
             { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
             allowClear = false,
           )
-          com.example.ui.components.DateChip("Deadline", goal.deadlineIso) { viewModel.setGoalDeadline(goal.id, it) }
-          com.example.ui.components.DateChip("Goal set", goal.goalSetIso) { viewModel.setGoalSetDate(goal.id, it) }
+          com.example.ui.components.DateChip(
+            Icons.Default.Event,
+            "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
+          )
+          com.example.ui.components.DateChip(
+            Icons.Outlined.Flag,
+            "Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) },
+          )
           com.example.ui.components.SelectChip(
+            Icons.Default.Tag,
             "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
             uiState.tags.map { it.name },
             { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },

@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
@@ -85,13 +88,18 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       Spacer(Modifier.height(8.dp))
       com.example.ui.components.PropertyChipRow {
         com.example.ui.components.SelectChip(
+          Icons.Default.Description,
           "Type", note.type,
           uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Voice Note", "Daily")),
           { it?.let { t -> viewModel.setNoteType(note.id, t) } },
           allowClear = false,
         )
-        com.example.ui.components.DateChip("Date", note.dateIso) { viewModel.setNoteDate(note.id, it) }
+        com.example.ui.components.DateChip(
+          Icons.Default.Event,
+          "Date", note.dateIso, { viewModel.setNoteDate(note.id, it) },
+        )
         com.example.ui.components.SelectChip(
+          Icons.Default.Folder,
           "Project", note.projectName,
           uiState.projects.map { it.name },
           { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },

@@ -158,30 +158,35 @@ fun PropertyChipRow(modifier: Modifier = Modifier, content: @Composable () -> Un
 }
 
 /**
- * One property as a chip. Set → a filled InputChip showing the value (with an
- * optional clear); unset → a ghost "＋ Label" SuggestionChip. Tapping either
- * runs [onClick] (which opens the relevant picker).
+ * One property as a chip. Set → a tonal chip showing the icon + value (with an
+ * optional clear); unset → an outlined chip showing icon + label. One tap opens
+ * the picker. No "Label ·" prefix — the icon carries the meaning.
  */
 @Composable
 fun PropertyChip(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
   label: String,
   value: String?,
   onClick: () -> Unit,
   onClear: (() -> Unit)? = null,
-  selectedTint: Color = Color.Unspecified,
+  valueColor: Color = Color.Unspecified,
 ) {
   if (value.isNullOrBlank()) {
-    SuggestionChip(
+    androidx.compose.material3.AssistChip(
       onClick = onClick,
       label = { Text(label) },
-      icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) },
-      colors = SuggestionChipDefaults.suggestionChipColors(labelColor = MaterialTheme.colorScheme.onSurfaceVariant),
+      leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
+      colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+      ),
     )
   } else {
     InputChip(
       selected = true,
       onClick = onClick,
-      label = { Text("$label · $value") },
+      label = { Text(value, color = valueColor) },
+      leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
       trailingIcon = if (onClear != null) {
         {
           Icon(
@@ -198,6 +203,7 @@ fun PropertyChip(
 /** [PropertyChip] backed by a single-select dropdown. */
 @Composable
 fun SelectChip(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
   label: String,
   value: String?,
   options: List<String>,
@@ -207,6 +213,7 @@ fun SelectChip(
   var open by remember { mutableStateOf(false) }
   Box {
     PropertyChip(
+      icon = icon,
       label = label,
       value = value,
       onClick = { open = true },
@@ -225,17 +232,21 @@ fun SelectChip(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateChip(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
   label: String,
   iso: String?,
   onPick: (String?) -> Unit,
+  overdue: Boolean = false,
 ) {
   var open by remember { mutableStateOf(false) }
   val date = iso?.substringBefore('T')?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
   PropertyChip(
+    icon = icon,
     label = label,
     value = date?.format(DateTimeFormatter.ofPattern("MMM d")),
     onClick = { open = true },
     onClear = if (date != null) ({ onPick(null) }) else null,
+    valueColor = if (overdue && date != null) MaterialTheme.colorScheme.error else Color.Unspecified,
   )
   if (open) {
     val state = rememberDatePickerState(
