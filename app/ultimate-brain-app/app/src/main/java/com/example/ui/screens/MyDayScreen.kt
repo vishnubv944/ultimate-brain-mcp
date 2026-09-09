@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -294,9 +295,10 @@ fun MyDayScreen(
         }
       }
 
-      // ---- Evening wrap-up ----
-      Spacer(Modifier.height(28.dp))
-      WrapUpCard(
+      // ---- Wrap up ----
+      Spacer(Modifier.height(24.dp))
+      ThinDivider()
+      WrapUp(
         doneCount = doneToday.size,
         focusedSeconds = uiState.focusedSecondsToday,
         openCount = openCount,
@@ -343,7 +345,7 @@ fun MyDayScreen(
 }
 
 @Composable
-private fun WrapUpCard(
+private fun WrapUp(
   doneCount: Int,
   focusedSeconds: Long,
   openCount: Int,
@@ -354,51 +356,46 @@ private fun WrapUpCard(
   val m = (focusedSeconds % 3600) / 60
   val focusedLabel = if (h > 0) "${h}h ${m}m" else "${m}m"
 
-  Surface(
-    shape = RoundedCornerShape(20.dp),
-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    modifier = Modifier.fillMaxWidth(),
-  ) {
-    Column(Modifier.padding(18.dp)) {
-      Text(
-        "Wrap up",
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Spacer(Modifier.height(10.dp))
-      Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        WrapStat(doneCount.toString(), "done")
-        WrapStat(focusedLabel, "focused")
-        WrapStat(openCount.toString(), "still open")
+  Column(Modifier.padding(top = 16.dp)) {
+    Text(
+      "Wrap up",
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Medium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+      buildList {
+        add("$doneCount done")
+        if (focusedSeconds > 0) add("$focusedLabel focused")
+        add("$openCount still open")
+      }.joinToString("  ·  "),
+      style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.padding(top = 4.dp),
+    )
+    Row(
+      modifier = Modifier.padding(top = 8.dp),
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      if (openCount > 0) {
+        TextButton(
+          onClick = onMoveAllTomorrow,
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+          Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(Modifier.width(6.dp))
+          Text("Move to tomorrow")
+        }
       }
-      Spacer(Modifier.height(14.dp))
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (openCount > 0) {
-          TextButton(onClick = onMoveAllTomorrow) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text("  Move to tomorrow")
-          }
-        }
-        TextButton(onClick = onWriteJournal) {
-          Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp))
-          Text("  Journal")
-        }
+      TextButton(
+        onClick = onWriteJournal,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+      ) {
+        Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("Write journal")
       }
     }
-  }
-}
-
-@Composable
-private fun WrapStat(value: String, label: String) {
-  Column {
-    Text(
-      value,
-      style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
-      fontWeight = FontWeight.Bold,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 
