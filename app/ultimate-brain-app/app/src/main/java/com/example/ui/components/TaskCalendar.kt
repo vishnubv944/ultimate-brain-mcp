@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +74,20 @@ fun TaskCalendar(
   val first = month.atDay(1)
   val gridStart = first.minusDays((first.dayOfWeek.value - 1).toLong())
 
+  var dragTotal by remember(month) { mutableFloatStateOf(0f) }
+  val swipe = Modifier.pointerInput(month) {
+    detectHorizontalDragGestures(
+      onDragEnd = {
+        when {
+          dragTotal > 70f -> onMonth(month.minusMonths(1))
+          dragTotal < -70f -> onMonth(month.plusMonths(1))
+        }
+        dragTotal = 0f
+      },
+      onDragCancel = { dragTotal = 0f },
+    ) { _, amount -> dragTotal += amount }
+  }
+
   Column(modifier.fillMaxWidth().padding(horizontal = TodayPad)) {
     Row(
       Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -88,6 +108,7 @@ fun TaskCalendar(
       }
     }
 
+    Column(Modifier.fillMaxWidth().then(swipe)) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
       WEEKDAYS.forEach { d ->
         Text(
@@ -160,6 +181,7 @@ fun TaskCalendar(
           }
         }
       }
+    }
     }
   }
 }

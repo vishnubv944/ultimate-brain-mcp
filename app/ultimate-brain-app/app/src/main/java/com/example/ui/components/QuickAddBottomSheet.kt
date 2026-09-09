@@ -79,7 +79,8 @@ import com.example.ui.theme.warning
 fun QuickAddBottomSheet(
   onDismiss: () -> Unit,
   onSaveTask: (name: String, projectId: String?, priority: Priority?, isMyDay: Boolean, dueIso: String?) -> Unit,
-  projects: List<ProjectModel> = emptyList()
+  projects: List<ProjectModel> = emptyList(),
+  initialDueIso: String? = null,
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var taskName by remember { mutableStateOf("") }
@@ -87,7 +88,7 @@ fun QuickAddBottomSheet(
   var selectedProject by remember { mutableStateOf<ProjectModel?>(null) }
   var projectMenuOpen by remember { mutableStateOf(false) }
   var selectedPriority by remember { mutableStateOf<Priority?>(null) }
-  var dueIso by remember { mutableStateOf<String?>(null) }
+  var dueIso by remember { mutableStateOf(initialDueIso) }
   var datePickerOpen by remember { mutableStateOf(false) }
 
   ModalBottomSheet(

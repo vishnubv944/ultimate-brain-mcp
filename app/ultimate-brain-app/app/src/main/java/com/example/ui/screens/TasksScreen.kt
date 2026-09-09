@@ -191,6 +191,7 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       onDismiss = { viewModel.setQuickAddOpen(false) },
       onSaveTask = { name, projectId, priority, isMyDay, dueIso -> viewModel.addNewTask(name, projectId, priority, isMyDay, dueIso) },
       projects = uiState.projects,
+      initialDueIso = if (calendarView) calSelected.toString() else null,
     )
   }
   if (uiState.isSearchOpen) {
