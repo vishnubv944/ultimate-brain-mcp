@@ -14,12 +14,12 @@ private val DarkColorScheme =
     primaryContainer = PrimaryContainerDark,
     onPrimaryContainer = OnPrimaryContainerDark,
     secondary = SecondaryBlueDark,
-    onSecondary = Color(0xFF082F49),
+    onSecondary = Color(0xFF232742),
     secondaryContainer = SecondaryContainerDark,
     onSecondaryContainer = OnSecondaryContainerDark,
     tertiary = EntityGoalsDark,
-    onTertiary = Color(0xFF053225),
-    tertiaryContainer = Color(0xFF0F4F3C),
+    onTertiary = Color(0xFF08301F),
+    tertiaryContainer = Color(0xFF124B37),
     onTertiaryContainer = Color(0xFFA7F3D0),
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
@@ -29,14 +29,13 @@ private val DarkColorScheme =
     onSurfaceVariant = OnSurfaceVariantDark,
     surfaceContainer = SurfaceContainerDark,
     surfaceContainerLow = SurfaceContainerLowDark,
-    surfaceContainerLowest = Color(0xFF050913),
+    surfaceContainerLowest = Color(0xFF0B0C0E),
     surfaceContainerHigh = SurfaceContainerHighDark,
-    surfaceContainerHighest = Color(0xFF3F4F66),
-    // Inverse surface (audit #12): "code snippet" tiles in dark mode want a
-    // darker, slightly warmer bg than the page surface so monospace code pops.
-    // On light mode we want the opposite — a tinted navy chip on a white page.
-    inverseSurface = Color(0xFF283044),
-    inverseOnSurface = Color(0xFFEEF0FF),
+    surfaceContainerHighest = Color(0xFF2E3037),
+    // Inverse surface (audit #12): "code snippet" tiles want a bg distinct
+    // from the page so monospace code pops.
+    inverseSurface = Color(0xFF1E2026),
+    inverseOnSurface = Color(0xFFE9EAEC),
     outline = OutlineDark,
     outlineVariant = OutlineVariantDark,
     error = ErrorRedDark,

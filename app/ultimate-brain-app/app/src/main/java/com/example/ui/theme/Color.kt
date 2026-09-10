@@ -4,19 +4,19 @@ import androidx.compose.ui.graphics.Color
 
 // Primary Indigo Palette
 val PrimaryIndigo = Color(0xFF4F46E5)
-val PrimaryIndigoDark = Color(0xFFA5B4FC)
+val PrimaryIndigoDark = Color(0xFFAAB4FF)     // periwinkle — vivid, not washed lavender
 val PrimaryContainerLight = Color(0xFFE0E7FF)
-val PrimaryContainerDark = Color(0xFF312E81)
-val OnPrimaryContainerLight = Color(0xFF1E1B4B)
-val OnPrimaryContainerDark = Color(0xFFE0E7FF)
+val PrimaryContainerDark = Color(0xFF34386E)
+val OnPrimaryContainerLight = Color(0xFF181A3D)
+val OnPrimaryContainerDark = Color(0xFFDFE1FF)
 
-// Secondary Cyan/Blue Palette
+// Secondary — pulled into the indigo family (was cyan, which clashed).
 val SecondaryBlue = Color(0xFF006591)
-val SecondaryBlueDark = Color(0xFF7DD3FC)
+val SecondaryBlueDark = Color(0xFFB9C0E8)
 val SecondaryContainerLight = Color(0xFFE0F2FE)
-val SecondaryContainerDark = Color(0xFF0C4A6E)
+val SecondaryContainerDark = Color(0xFF2C3052)
 val OnSecondaryContainerLight = Color(0xFF004666)
-val OnSecondaryContainerDark = Color(0xFFE0F2FE)
+val OnSecondaryContainerDark = Color(0xFFD6DBFF)
 
 // Surfaces & Backgrounds - Light
 val BackgroundLight = Color(0xFFFAF8FF)
@@ -30,17 +30,17 @@ val SurfaceContainerHighLight = Color(0xFFE2E8F0)
 val OutlineLight = Color(0xFF94A3B8)
 val OutlineVariantLight = Color(0xFFCBD5E1)
 
-// Surfaces & Backgrounds - Dark
-val BackgroundDark = Color(0xFF0B1220)
-val OnBackgroundDark = Color(0xFFF8FAFC)
-val SurfaceDark = Color(0xFF0F172A)
-val OnSurfaceDark = Color(0xFFF8FAFC)
-val OnSurfaceVariantDark = Color(0xFF94A3B8)
-val SurfaceContainerDark = Color(0xFF1E293B)
-val SurfaceContainerLowDark = Color(0xFF0B1220)
-val SurfaceContainerHighDark = Color(0xFF334155)
-val OutlineDark = Color(0xFF64748B)
-val OutlineVariantDark = Color(0xFF334155)
+// Surfaces & Backgrounds - Dark — warm graphite, not cold slate-navy.
+val BackgroundDark = Color(0xFF0F1013)
+val OnBackgroundDark = Color(0xFFE9EAEC)
+val SurfaceDark = Color(0xFF131417)
+val OnSurfaceDark = Color(0xFFE9EAEC)
+val OnSurfaceVariantDark = Color(0xFF9B9EA6)
+val SurfaceContainerDark = Color(0xFF1C1E22)
+val SurfaceContainerLowDark = Color(0xFF17181C)
+val SurfaceContainerHighDark = Color(0xFF24262B)
+val OutlineDark = Color(0xFF3C3F46)
+val OutlineVariantDark = Color(0xFF26282D)
 
 // Functional & Entity Accents
 // Spec values come from app-spec/04-design-tokens.md. Three values were
@@ -48,7 +48,7 @@ val OutlineVariantDark = Color(0xFF334155)
 // (teal 600), TagResource was #3B82F6 (blue 500 — collides with Tasks!).
 // Round 4 audit fix #14 brings them in line with the spec.
 val EntityProjects = Color(0xFF8B5CF6)
-val EntityProjectsDark = Color(0xFFC4B5FD)
+val EntityProjectsDark = Color(0xFFBBA9FF)
 val EntityTasks = Color(0xFF3B82F6)             // Spec: blue 500
 val EntityTasksDark = Color(0xFF93C5FD)
 val EntityTagArea = Color(0xFF14B8A6)            // Spec: teal 500
@@ -68,9 +68,9 @@ val SuccessContainerLight = Color(0xFFDCFCE7)
 val SuccessContainerDark = Color(0xFF14532D)
 
 val ErrorRed = Color(0xFFDC2626)
-val ErrorRedDark = Color(0xFFFCA5A5)
+val ErrorRedDark = Color(0xFFF98787)          // crisper overdue red on graphite
 val ErrorContainerLight = Color(0xFFFFDAD6)
-val ErrorContainerDark = Color(0xFF7F1D1D)
+val ErrorContainerDark = Color(0xFF5C1A1A)
 
 val WarningAmber = Color(0xFFD97706)
 val WarningAmberDark = Color(0xFFFCD34D)
