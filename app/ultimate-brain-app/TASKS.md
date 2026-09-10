@@ -468,4 +468,12 @@ Cloudflare Tunnel (gives HTTPS), or LAN IP (home only). Default plan:
 
 ## Done
 
-_(nothing yet)_
+- **Phase 1 — filters** (items 2, 4, 5, 6, 7)
+  - INFRA-A (view keys w/ sort + group) + INFRA-B (`GroupedList`) — `0da7472`
+  - Tasks / Projects / Notes / Goals / Tags Notion view sets — `0da7472`
+  - P1.2 Today tab "Add to today" chip set — `5459976`
+  - Remaining polish: status-coloured project dots (deferred).
+- **Phase 2 — long-press quick-edit** (item 1) — `0325217`
+  - `combinedClickable` onLongClick on TaskRow / EntityRow; `QuickEditSheet`
+    (task: Status/Due/Project/Priority/My Day; note: Type/Date/Project/Fav);
+    wired into Tasks, Today, Project detail, Notes.
