@@ -477,3 +477,14 @@ Cloudflare Tunnel (gives HTTPS), or LAN IP (home only). Default plan:
   - `combinedClickable` onLongClick on TaskRow / EntityRow; `QuickEditSheet`
     (task: Status/Due/Project/Priority/My Day; note: Type/Date/Project/Fav);
     wired into Tasks, Today, Project detail, Notes.
+- **Phase 3 — detail pages → EntityHub** (items 8, 9, 10, 11, 12)
+  - INFRA-C: `components/EntityHub.kt` (EntityHubHeader / DetailTabs /
+    HubSection) — `38599ce`
+  - P3.1 Task detail: tabs Content / Sub-Tasks / History (recurring
+    `Occurrences`) / Time — `38599ce`
+  - P3.2-3.5 Note / Project / Goal / Tag detail — `2d78e48`
+  - Deferred: true collapsible toggle rendering in `MarkdownBody`
+    (INFRA-C1); Project Tasks List/Board/Calendar switch; the Notion tag/
+    project hub's extra sections (Web Clips, People, Journal accordion);
+    real tag rollup counts (formatter-stubbed at 18); Relations quick-add
+    rows on Note detail (NoteModel lacks the relation id lists).
