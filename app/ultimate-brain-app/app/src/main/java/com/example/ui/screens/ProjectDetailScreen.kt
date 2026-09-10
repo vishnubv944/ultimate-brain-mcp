@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.lazy.LazyColumn
@@ -85,30 +86,26 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
           title = project.name,
           onRename = { viewModel.renameProject(project.id, it) },
           modifier = Modifier.padding(horizontal = TodayPad),
-          icon = Icons.Default.Rocket,
-          iconTint = MaterialTheme.colorScheme.entityProjects,
+          leading = {
+            Icon(Icons.Default.Rocket, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.entityProjects)
+          },
           viewDetails = { ProjectViewDetails(project, uiState, viewModel) },
           propertyStrip = {
-            com.example.ui.components.PropertyChipRow {
-              com.example.ui.components.SelectChip(
-                Icons.Outlined.CheckCircle,
-                "Status", project.status,
+            com.example.ui.components.PropertyGrid {
+              com.example.ui.components.SelectCell(
+                Icons.Outlined.CheckCircle, "Status", project.status,
                 uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
                 { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
                 allowClear = false,
               )
-              com.example.ui.components.DateChip(
-                Icons.Default.Event,
-                "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
+              com.example.ui.components.DateCell(
+                Icons.Default.Event, "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
               )
-              com.example.ui.components.PropertyChip(
-                Icons.Default.TrendingUp, "Progress",
-                project.progressText.ifBlank { "0%" },
-                onClick = {},
+              com.example.ui.components.PropertyCell(
+                Icons.Default.TrendingUp, "Progress", project.progressText.ifBlank { "0%" }, {},
               )
-              com.example.ui.components.SelectChip(
-                Icons.Default.TrackChanges,
-                "Goal", project.goalName,
+              com.example.ui.components.SelectCell(
+                Icons.Default.TrackChanges, "Goal", project.goalName,
                 uiState.goals.map { it.name },
                 { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
               )

@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -61,8 +62,9 @@ fun TagDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           title = tag.name,
           onRename = { viewModel.renameTag(tag.id, it) },
           modifier = Modifier.padding(horizontal = TodayPad),
-          icon = Icons.Default.Folder,
-          iconTint = MaterialTheme.colorScheme.entityProjects,
+          leading = {
+            Icon(Icons.Default.Folder, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.entityProjects)
+          },
           viewDetails = {
             OptionRow(
               "Parent tag", tag.parentName,
@@ -71,22 +73,15 @@ fun TagDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             )
           },
           propertyStrip = {
-            PropertyChipRow {
-              SelectChip(
+            com.example.ui.components.PropertyGrid {
+              com.example.ui.components.SelectCell(
                 Icons.Outlined.Flag, "Type", tag.type,
                 uiState.optionsFor("tag.Type", listOf("Area", "Resource", "Entity")),
                 { it?.let { t -> viewModel.setTagType(tag.id, t) } },
                 allowClear = false,
               )
-              FilterChip(
-                selected = tag.isFavorite,
-                onClick = { viewModel.toggleTagFavorite(tag.id) },
-                label = { Text("Favorite") },
-              )
-              PropertyChip(
-                Icons.Outlined.Flag, "Items",
-                if (tag.totalItems > 0) "${tag.totalItems}" else null,
-                onClick = {},
+              com.example.ui.components.ToggleCell(
+                Icons.Default.Star, "Favorite", tag.isFavorite, { viewModel.toggleTagFavorite(tag.id) },
               )
             }
           },

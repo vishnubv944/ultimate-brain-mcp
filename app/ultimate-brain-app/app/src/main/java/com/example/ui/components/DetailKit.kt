@@ -4,12 +4,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -155,6 +158,164 @@ fun PropertyChipRow(modifier: Modifier = Modifier, content: @Composable () -> Un
     modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) { content() }
+}
+
+/**
+ * The Notion-style property block under a page title: a wrapping grid of quiet
+ * `icon LABEL` / value cells. No chip fills, no clutter — the value is the
+ * emphasis, the label is a muted caption, the whole cell is the tap target.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun PropertyGrid(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+  androidx.compose.foundation.layout.FlowRow(
+    modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+    horizontalArrangement = Arrangement.spacedBy(24.dp),
+    verticalArrangement = Arrangement.spacedBy(2.dp),
+  ) { content() }
+}
+
+/** One cell of a [PropertyGrid]. [trailing] draws next to the value (e.g. a checkbox). */
+@Composable
+fun PropertyCell(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  value: String?,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  valueColor: Color = Color.Unspecified,
+  emptyText: String = "Empty",
+  trailing: (@Composable () -> Unit)? = null,
+) {
+  Column(
+    modifier = modifier
+      .widthIn(min = 116.dp)
+      .clip(RoundedCornerShape(8.dp))
+      .clickable(onClick = onClick)
+      .padding(vertical = 8.dp, horizontal = 2.dp),
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+      Spacer(Modifier.width(5.dp))
+      Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Spacer(Modifier.height(3.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Text(
+        value?.takeIf { it.isNotBlank() } ?: emptyText,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (value.isNullOrBlank()) FontWeight.Normal else FontWeight.Medium,
+        color = when {
+          value.isNullOrBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+          valueColor != Color.Unspecified -> valueColor
+          else -> MaterialTheme.colorScheme.onSurface
+        },
+        maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+      )
+      if (trailing != null) { Spacer(Modifier.width(6.dp)); trailing() }
+    }
+  }
+}
+
+/** [PropertyCell] backed by a single-select dropdown. */
+@Composable
+fun SelectCell(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  value: String?,
+  options: List<String>,
+  onSelect: (String?) -> Unit,
+  modifier: Modifier = Modifier,
+  allowClear: Boolean = true,
+  valueColor: Color = Color.Unspecified,
+) {
+  var open by remember { mutableStateOf(false) }
+  Box {
+    PropertyCell(icon, label, value, { open = true }, modifier, valueColor)
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+      if (allowClear) DropdownMenuItem(text = { Text("None") }, onClick = { open = false; onSelect(null) })
+      options.forEach { opt ->
+        DropdownMenuItem(text = { Text(opt) }, onClick = { open = false; onSelect(opt) })
+      }
+    }
+  }
+}
+
+/** [PropertyCell] backed by a date picker. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DateCell(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  iso: String?,
+  onPick: (String?) -> Unit,
+  modifier: Modifier = Modifier,
+  overdue: Boolean = false,
+) {
+  var open by remember { mutableStateOf(false) }
+  val date = iso?.substringBefore('T')?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+  PropertyCell(
+    icon, label,
+    date?.format(DateTimeFormatter.ofPattern("MMM d")),
+    { open = true }, modifier,
+    valueColor = if (overdue && date != null) MaterialTheme.colorScheme.error else Color.Unspecified,
+  )
+  if (open) {
+    val state = rememberDatePickerState(
+      initialSelectedDateMillis = date?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+    )
+    DatePickerDialog(
+      onDismissRequest = { open = false },
+      confirmButton = {
+        TextButton(onClick = {
+          open = false
+          state.selectedDateMillis?.let {
+            onPick(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString())
+          }
+        }) { Text("OK") }
+      },
+      dismissButton = {
+        Row {
+          if (date != null) TextButton(onClick = { onPick(null); open = false }) { Text("Clear") }
+          TextButton(onClick = { open = false }) { Text("Cancel") }
+        }
+      },
+    ) { DatePicker(state = state) }
+  }
+}
+
+/** [PropertyCell] whose value is a boolean, shown as a checkbox; tap toggles. */
+@Composable
+fun ToggleCell(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  checked: Boolean,
+  onToggle: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier = modifier
+      .widthIn(min = 116.dp)
+      .clip(RoundedCornerShape(8.dp))
+      .clickable(onClick = onToggle)
+      .padding(vertical = 8.dp, horizontal = 2.dp),
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+      Spacer(Modifier.width(5.dp))
+      Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    Spacer(Modifier.height(1.dp))
+    androidx.compose.material3.Checkbox(
+      checked = checked, onCheckedChange = { onToggle() },
+      modifier = Modifier.size(20.dp).padding(0.dp),
+    )
+  }
 }
 
 /**

@@ -84,34 +84,30 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           title = goal.name,
           onRename = { viewModel.renameGoal(goal.id, it) },
           modifier = Modifier.padding(horizontal = TodayPad),
-          icon = Icons.Default.EmojiEvents,
-          iconTint = MaterialTheme.colorScheme.primary,
+          leading = {
+            Icon(Icons.Default.EmojiEvents, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+          },
           viewDetails = {
             DateFieldRow("Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) })
           },
           propertyStrip = {
-            com.example.ui.components.PropertyChipRow {
-              com.example.ui.components.SelectChip(
-                Icons.Outlined.CheckCircle,
-                "Status", goal.status,
+            com.example.ui.components.PropertyGrid {
+              com.example.ui.components.SelectCell(
+                Icons.Outlined.CheckCircle, "Status", goal.status,
                 uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
                 { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
                 allowClear = false,
               )
-              com.example.ui.components.SelectChip(
-                Icons.Default.Tag,
-                "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
+              com.example.ui.components.SelectCell(
+                Icons.Default.Tag, "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
                 uiState.tags.map { it.name },
                 { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
               )
-              com.example.ui.components.PropertyChip(
-                Icons.Default.TrendingUp, "Progress",
-                goal.aggregatedProgressText.ifBlank { "0%" },
-                onClick = {},
+              com.example.ui.components.PropertyCell(
+                Icons.Default.TrendingUp, "Progress", goal.aggregatedProgressText.ifBlank { "0%" }, {},
               )
-              com.example.ui.components.DateChip(
-                Icons.Default.Event,
-                "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
+              com.example.ui.components.DateCell(
+                Icons.Default.Event, "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
               )
             }
           },

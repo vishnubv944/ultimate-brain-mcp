@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -82,41 +83,44 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       modifier = Modifier
         .fillMaxSize()
         .padding(innerPadding)
-        .verticalScroll(rememberScrollState())
-        .padding(horizontal = TodayPad),
+        .verticalScroll(rememberScrollState()),
+      horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
-      Spacer(Modifier.height(4.dp))
+     Column(
+      modifier = Modifier
+        .widthIn(max = com.example.ui.components.DETAIL_MAX_WIDTH)
+        .fillMaxWidth()
+        .padding(horizontal = TodayPad),
+     ) {
       EntityHubHeader(
         title = note.title,
         onRename = { viewModel.renameNote(note.id, it) },
-        icon = Icons.Default.Description,
+        leading = {
+          Icon(
+            Icons.Default.Description, contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        },
         viewDetails = { NoteViewDetails(note, uiState, viewModel) },
         propertyStrip = {
-          PropertyChipRow {
-            SelectChip(
+          com.example.ui.components.PropertyGrid {
+            com.example.ui.components.SelectCell(
               Icons.Default.Description, "Type", note.type,
               uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Voice Note", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Daily")),
               { it?.let { t -> viewModel.setNoteType(note.id, t) } },
               allowClear = false,
             )
-            com.example.ui.components.DateChip(
+            com.example.ui.components.DateCell(
               Icons.Default.Event, "Date", note.dateIso, { viewModel.setNoteDate(note.id, it) },
             )
-            SelectChip(
+            com.example.ui.components.SelectCell(
               Icons.Default.Folder, "Project", note.projectName,
               uiState.projects.filter { !it.isArchived }.map { it.name },
               { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
             )
-            FilterChip(
-              selected = note.isFavorite,
-              onClick = { viewModel.toggleNoteFavorite(note.id) },
-              label = { Text("Favorite") },
-              leadingIcon = {
-                Icon(
-                  if (note.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
-                  contentDescription = null, modifier = Modifier.size(16.dp),
-                )
-              },
+            com.example.ui.components.ToggleCell(
+              Icons.Default.Star, "Favorite", note.isFavorite, { viewModel.toggleNoteFavorite(note.id) },
             )
           }
         },
@@ -152,6 +156,7 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         }
       }
       Spacer(Modifier.height(96.dp))
+     }
     }
   }
 }

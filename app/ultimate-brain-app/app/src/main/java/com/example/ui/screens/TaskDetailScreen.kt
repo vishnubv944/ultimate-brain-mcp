@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +40,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -86,21 +88,6 @@ fun TaskDetailScreen(
     title = "Task",
     onBack = onNavigateBack,
     modifier = modifier,
-    bottomBar = {
-      if (task != null) {
-        Button(
-          onClick = { viewModel.toggleTaskCompletion(task.id) },
-          shape = RoundedCornerShape(16.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = if (task.isDone) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
-            contentColor = if (task.isDone) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
-          ),
-          modifier = Modifier.fillMaxWidth().padding(horizontal = TodayPad, vertical = 12.dp).imePadding(),
-        ) {
-          Text(if (task.isDone) "Reopen task" else "Mark complete", fontWeight = FontWeight.SemiBold)
-        }
-      }
-    },
   ) { innerPadding ->
     if (task == null) {
       EmptyLine("Task not found.", Modifier.padding(innerPadding).padding(TodayPad))
@@ -110,47 +97,54 @@ fun TaskDetailScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(innerPadding)
-        .verticalScroll(rememberScrollState())
-        .padding(horizontal = TodayPad),
+        .verticalScroll(rememberScrollState()),
+      horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-      Spacer(Modifier.height(4.dp))
+     Column(
+      modifier = Modifier
+        .widthIn(max = com.example.ui.components.DETAIL_MAX_WIDTH)
+        .fillMaxWidth()
+        .padding(horizontal = TodayPad),
+     ) {
       com.example.ui.components.EntityHubHeader(
         title = task.name,
         onRename = { viewModel.renameTask(task.id, it) },
-        icon = Icons.Outlined.CheckCircle,
-        iconTint = MaterialTheme.colorScheme.primary,
+        leading = {
+          Icon(
+            imageVector = if (task.isDone) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+            contentDescription = if (task.isDone) "Mark not done" else "Mark done",
+            tint = if (task.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            modifier = Modifier
+              .size(26.dp)
+              .clip(CircleShape)
+              .clickable { viewModel.toggleTaskCompletion(task.id) },
+          )
+        },
         viewDetails = { TaskViewDetails(task, uiState, viewModel) },
         propertyStrip = {
-          com.example.ui.components.PropertyChipRow {
-            com.example.ui.components.SelectChip(
-              Icons.Outlined.CheckCircle,
-              "Status", statusLabel(task.status),
+          com.example.ui.components.PropertyGrid {
+            com.example.ui.components.SelectCell(
+              Icons.Outlined.CheckCircle, "Status", statusLabel(task.status),
               listOf("To Do", "Doing", "Done"),
               { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
               allowClear = false,
             )
-            com.example.ui.components.SelectChip(
-              Icons.Default.Folder,
-              "Project", task.projectName,
+            com.example.ui.components.SelectCell(
+              Icons.Default.Folder, "Project", task.projectName,
               uiState.projects.filter { !it.isArchived }.map { it.name },
               { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
             )
-            com.example.ui.components.DateChip(
-              Icons.Default.Event,
-              "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
+            com.example.ui.components.DateCell(
+              Icons.Default.Event, "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
               overdue = task.isOverdue,
             )
-            com.example.ui.components.SelectChip(
-              Icons.Outlined.Flag,
-              "Priority", task.priority?.let { priorityLabel(it) },
+            com.example.ui.components.SelectCell(
+              Icons.Outlined.Flag, "Priority", task.priority?.let { priorityLabel(it) },
               listOf("High", "Medium", "Low"),
               { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
             )
-            FilterChip(
-              selected = task.isMyDay,
-              onClick = { viewModel.toggleMyDay(task.id) },
-              label = { Text("My Day") },
-              leadingIcon = { Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            com.example.ui.components.ToggleCell(
+              Icons.Default.WbSunny, "My Day", task.isMyDay, { viewModel.toggleMyDay(task.id) },
             )
           }
         },
@@ -177,6 +171,7 @@ fun TaskDetailScreen(
         "Time" -> TaskTimeTab(task, uiState, viewModel)
       }
       Spacer(Modifier.height(120.dp))
+     }
     }
   }
 }
@@ -304,27 +299,23 @@ private fun TaskContentTab(
   onDescChange: (String) -> Unit,
 ) {
   Column {
-    var descEditing by remember(task.id) { mutableStateOf(false) }
-    if (task.description.isBlank() && !descEditing && descDraft.isBlank()) {
-      androidx.compose.material3.TextButton(
-        onClick = { descEditing = true },
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-      ) {
-        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.size(6.dp))
-        Text("Add description")
-      }
-    } else {
-      OutlinedTextField(
-        value = descDraft,
-        onValueChange = onDescChange,
-        placeholder = { Text("Description") },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-      )
-      if (descDraft != task.description) {
-        androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft); descEditing = false }) {
-          Text("Save")
-        }
+    // A borderless, always-there description field — reads as page body, not a form.
+    androidx.compose.material3.TextField(
+      value = descDraft,
+      onValueChange = onDescChange,
+      placeholder = { Text("Write a description…", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
+      textStyle = MaterialTheme.typography.bodyMedium,
+      colors = androidx.compose.material3.TextFieldDefaults.colors(
+        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+      ),
+      modifier = Modifier.fillMaxWidth(),
+    )
+    if (descDraft.trim() != task.description.trim()) {
+      androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft.trim()) }) {
+        Text("Save description")
       }
     }
 
@@ -334,7 +325,7 @@ private fun TaskContentTab(
         Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
       !uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == task.id -> {
-        Spacer(Modifier.height(8.dp))
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         MarkdownBody(uiState.detailBody!!)
       }
     }
