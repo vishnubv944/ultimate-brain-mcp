@@ -55,10 +55,9 @@ fun NotesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
   val list = uiState.notesMatching(uiState.selectedChipKey(com.example.model.FilterScope.NOTES))
 
-  ScreenScaffold(
+  com.example.ui.components.DetailScaffold(
     title = "Notes",
-    viewModel = viewModel,
-    active = BottomNavDestination.NOTES,
+    onBack = { viewModel.navigateBack() },
     modifier = modifier,
     actions = {
       IconButton(onClick = { viewModel.navigateTo(AppScreen.GLOBAL_SEARCH) }) {

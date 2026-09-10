@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.MenuBook
@@ -56,6 +57,8 @@ fun MoreHubScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val cs = MaterialTheme.colorScheme
 
   val productivity = listOf(
+    HubEntry(Icons.Default.Description, cs.entityNotes, "Notes",
+      "${uiState.notes.size} notes", AppScreen.NOTES),
     HubEntry(Icons.Default.TrackChanges, cs.entityGoals, "Goals",
       "${uiState.goals.count { !it.isArchived && it.status != "Achieved" }} active · milestones inside", AppScreen.GOALS),
     HubEntry(Icons.Default.Tag, cs.entityTagArea, "Tags & Areas",

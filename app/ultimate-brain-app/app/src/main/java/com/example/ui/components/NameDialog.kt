@@ -13,10 +13,27 @@ import androidx.compose.runtime.setValue
 /** "New <label>" dialog with a single name field. Shared by every create flow. */
 @Composable
 fun NameDialog(label: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-  var text by remember { mutableStateOf("") }
+  FieldDialog("New $label", "", "Create", onDismiss, onConfirm)
+}
+
+/** "Rename <label>" dialog, pre-filled with [current]. */
+@Composable
+fun RenameDialog(label: String, current: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+  FieldDialog("Rename $label", current, "Save", onDismiss, onConfirm)
+}
+
+@Composable
+private fun FieldDialog(
+  title: String,
+  initial: String,
+  confirmLabel: String,
+  onDismiss: () -> Unit,
+  onConfirm: (String) -> Unit,
+) {
+  var text by remember { mutableStateOf(initial) }
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("New $label") },
+    title = { Text(title) },
     text = {
       OutlinedTextField(
         value = text,
@@ -26,7 +43,7 @@ fun NameDialog(label: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit
       )
     },
     confirmButton = {
-      TextButton(onClick = { onConfirm(text.trim()); onDismiss() }, enabled = text.isNotBlank()) { Text("Create") }
+      TextButton(onClick = { onConfirm(text.trim()); onDismiss() }, enabled = text.isNotBlank()) { Text(confirmLabel) }
     },
     dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
   )

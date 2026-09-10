@@ -47,6 +47,7 @@ import com.example.viewmodel.isTopLevelTab
 
 class MainActivity : ComponentActivity() {
   private val viewModel: MyDayViewModel by viewModels()
+  private val chatViewModel: com.example.viewmodel.ChatViewModel by viewModels()
 
   private val notifPermission =
     registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     com.example.data.FilterStore.init(this)
+    com.example.data.hermes.HermesConfig.init(this)
 
     // Focus-timer notification permission (Android 13+). Asked once up front so
     // the ongoing timer notification can actually show.
@@ -143,6 +145,9 @@ class MainActivity : ComponentActivity() {
           composable("notes") {
             NotesScreen(viewModel = viewModel)
           }
+          composable("chat") {
+            com.example.ui.screens.ChatScreen(viewModel = viewModel, chatViewModel = chatViewModel)
+          }
           composable("note_detail") {
             NoteDetailScreen(viewModel = viewModel)
           }
@@ -212,6 +217,7 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.NOTES -> "notes"
   AppScreen.NOTE_DETAIL -> "note_detail"
   AppScreen.NOTE_EDITOR -> "note_editor"
+  AppScreen.CHAT -> "chat"
   AppScreen.GOALS -> "goals"
   AppScreen.GOAL_DETAIL -> "goal_detail"
   AppScreen.MILESTONES -> "milestones"

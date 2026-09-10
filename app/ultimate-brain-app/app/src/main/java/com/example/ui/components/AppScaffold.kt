@@ -56,7 +56,7 @@ fun bottomNavHandler(viewModel: MyDayViewModel): (BottomNavDestination) -> Unit 
     BottomNavDestination.TODAY -> viewModel.navigateTo(AppScreen.TODAY)
     BottomNavDestination.TASKS -> viewModel.navigateTo(AppScreen.TASKS)
     BottomNavDestination.PROJECTS -> viewModel.navigateTo(AppScreen.PROJECTS)
-    BottomNavDestination.NOTES -> viewModel.navigateTo(AppScreen.NOTES)
+    BottomNavDestination.CHAT -> viewModel.navigateTo(AppScreen.CHAT)
     BottomNavDestination.MORE -> viewModel.navigateTo(AppScreen.MORE_HUB)
   }
 }

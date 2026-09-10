@@ -52,6 +52,7 @@ enum class AppScreen {
   NOTES,
   NOTE_DETAIL,
   NOTE_EDITOR,
+  CHAT,
   GOALS,
   GOAL_DETAIL,
   MILESTONES,
@@ -93,7 +94,7 @@ sealed class NavIntent {
  */
 val AppScreen.isTopLevelTab: Boolean
   get() = this == AppScreen.TODAY || this == AppScreen.TASKS ||
-    this == AppScreen.PROJECTS || this == AppScreen.NOTES ||
+    this == AppScreen.PROJECTS || this == AppScreen.CHAT ||
     this == AppScreen.MORE_HUB
 
 /**

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +75,9 @@ fun SettingsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         modifier = Modifier.fillMaxWidth(),
       ) { Text("Sync now") }
 
+      SectionHeader("Hermes chat")
+      HermesSettings()
+
       SectionHeader("Appearance")
       SettingSwitch("Dynamic colour (Material You)", uiState.dynamicColorEnabled) {
         viewModel.setDynamicColorEnabled(it)
@@ -87,6 +94,52 @@ fun SettingsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         )
       }
       Spacer(Modifier.height(96.dp))
+    }
+  }
+}
+
+@Composable
+private fun HermesSettings() {
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
+  var base by remember { mutableStateOf(com.example.data.hermes.HermesConfig.baseUrl) }
+  var key by remember { mutableStateOf(com.example.data.hermes.HermesConfig.apiKey) }
+  var status by remember { mutableStateOf<String?>(null) }
+  var testing by remember { mutableStateOf(false) }
+
+  androidx.compose.material3.OutlinedTextField(
+    value = base, onValueChange = { base = it },
+    label = { Text("Server URL") },
+    placeholder = { Text("http://100.x.y.z:8642") },
+    singleLine = true,
+    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+  )
+  androidx.compose.material3.OutlinedTextField(
+    value = key, onValueChange = { key = it },
+    label = { Text("API key") },
+    singleLine = true,
+    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+  )
+  Row(verticalAlignment = Alignment.CenterVertically) {
+    OutlinedButton(
+      onClick = {
+        com.example.data.hermes.HermesConfig.save(base, key)
+        status = null; testing = true
+        scope.launch {
+          val ok = com.example.data.hermes.HermesRepository().health()
+          testing = false
+          status = if (ok) "Connected ✓" else "Couldn't reach the server"
+        }
+      },
+      enabled = !testing,
+    ) { Text(if (testing) "Testing…" else "Save & test") }
+    Spacer(Modifier.weight(1f))
+    status?.let {
+      Text(
+        it,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (it.endsWith("✓")) MaterialTheme.colorScheme.success else MaterialTheme.colorScheme.error,
+      )
     }
   }
 }

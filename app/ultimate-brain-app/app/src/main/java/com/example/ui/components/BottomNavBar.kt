@@ -2,8 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.WbSunny
@@ -24,7 +24,7 @@ enum class BottomNavDestination(val label: String, val icon: ImageVector) {
   TODAY("Today", Icons.Default.WbSunny),
   TASKS("Tasks", Icons.Default.Checklist),
   PROJECTS("Projects", Icons.Default.Folder),
-  NOTES("Notes", Icons.Default.Description),
+  CHAT("Chat", Icons.AutoMirrored.Filled.Chat),
   MORE("More", Icons.Default.MoreHoriz)
 }
 
