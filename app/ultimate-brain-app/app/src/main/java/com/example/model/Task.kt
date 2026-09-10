@@ -57,6 +57,7 @@ data class Task(
   val shoppingList: Boolean = false,
   val personIds: List<String> = emptyList(),
   val noteIds: List<String> = emptyList(),
+  val occurrenceIds: List<String> = emptyList(),  // recurring-task past instances
   val assigneeIds: List<String> = emptyList(),
   val assigneeNames: List<String> = emptyList(),
 )

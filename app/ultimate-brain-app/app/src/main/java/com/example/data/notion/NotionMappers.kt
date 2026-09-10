@@ -82,6 +82,7 @@ object NotionMappers {
       shoppingList = p.prop("Shopping List")?.isChecked() == true,
       personIds = p.prop("People").rel(),
       noteIds = p.prop("Notes").rel(),
+      occurrenceIds = p.prop("Occurrences").rel(),
       assigneeIds = p.prop("Assignee")?.people.orEmpty().mapNotNull { it.id },
       assigneeNames = p.prop("Assignee")?.people.orEmpty().mapNotNull { it.name },
     )

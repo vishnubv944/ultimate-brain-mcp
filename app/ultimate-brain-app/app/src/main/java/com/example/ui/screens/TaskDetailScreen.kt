@@ -113,76 +113,80 @@ fun TaskDetailScreen(
         .verticalScroll(rememberScrollState())
         .padding(horizontal = TodayPad),
     ) {
-      Spacer(Modifier.height(8.dp))
-      com.example.ui.components.DetailTitle(task.name, { viewModel.renameTask(task.id, it) })
-      Spacer(Modifier.height(8.dp))
-
-      com.example.ui.components.PropertyChipRow {
-        com.example.ui.components.SelectChip(
-          Icons.Outlined.CheckCircle,
-          "Status", statusLabel(task.status),
-          listOf("To Do", "Doing", "Done"),
-          { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
-          allowClear = false,
-        )
-        com.example.ui.components.DateChip(
-          Icons.Default.Event,
-          "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
-          overdue = task.isOverdue,
-        )
-        com.example.ui.components.SelectChip(
-          Icons.Default.Folder,
-          "Project", task.projectName,
-          uiState.projects.filter { !it.isArchived }.map { it.name },
-          { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
-        )
-        com.example.ui.components.SelectChip(
-          Icons.Outlined.Flag,
-          "Priority", task.priority?.let { priorityLabel(it) },
-          listOf("High", "Medium", "Low"),
-          { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
-        )
-        FilterChip(
-          selected = task.isMyDay,
-          onClick = { viewModel.toggleMyDay(task.id) },
-          label = { Text("My Day") },
-          leadingIcon = { Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp)) },
-        )
-      }
-
-      // Time tracked — a quiet read.
-      run {
-        val logged = uiState.workSessions.filter { it.taskId == task.id }
-        val mins = logged.sumOf { s -> s.durationMinutes ?: 0 }
-        val summary = when {
-          logged.isEmpty() -> "No sessions yet"
-          mins >= 60 -> "${mins / 60}h ${mins % 60}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
-          else -> "${mins}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
-        }
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { viewModel.openTaskWorkSessions(task.id) }
-            .padding(vertical = 12.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Column(Modifier.weight(1f)) {
-            Text("Time tracked", style = MaterialTheme.typography.bodyLarge)
-            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Spacer(Modifier.height(4.dp))
+      com.example.ui.components.EntityHubHeader(
+        title = task.name,
+        onRename = { viewModel.renameTask(task.id, it) },
+        icon = Icons.Outlined.CheckCircle,
+        iconTint = MaterialTheme.colorScheme.primary,
+        viewDetails = { TaskViewDetails(task, uiState, viewModel) },
+        propertyStrip = {
+          com.example.ui.components.PropertyChipRow {
+            com.example.ui.components.SelectChip(
+              Icons.Outlined.CheckCircle,
+              "Status", statusLabel(task.status),
+              listOf("To Do", "Doing", "Done"),
+              { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
+              allowClear = false,
+            )
+            com.example.ui.components.SelectChip(
+              Icons.Default.Folder,
+              "Project", task.projectName,
+              uiState.projects.filter { !it.isArchived }.map { it.name },
+              { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+            )
+            com.example.ui.components.DateChip(
+              Icons.Default.Event,
+              "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
+              overdue = task.isOverdue,
+            )
+            com.example.ui.components.SelectChip(
+              Icons.Outlined.Flag,
+              "Priority", task.priority?.let { priorityLabel(it) },
+              listOf("High", "Medium", "Low"),
+              { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
+            )
+            FilterChip(
+              selected = task.isMyDay,
+              onClick = { viewModel.toggleMyDay(task.id) },
+              label = { Text("My Day") },
+              leadingIcon = { Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            )
           }
-          Icon(
-            Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = "Open work sessions",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-          )
-        }
-      }
+        },
+      )
 
-      // Everything below is set-once-and-forget config — hidden until asked for.
-      var moreOpen by remember(task.id) { mutableStateOf(false) }
-      com.example.ui.components.ExpanderHeader("More details", moreOpen, { moreOpen = !moreOpen })
-      androidx.compose.animation.AnimatedVisibility(visible = moreOpen) {
+      val hasHistory = task.isRecurring || task.occurrenceIds.isNotEmpty()
+      val tabs = buildList {
+        add(com.example.ui.components.HubTab("Content"))
+        add(com.example.ui.components.HubTab("Sub-Tasks"))
+        if (hasHistory) add(com.example.ui.components.HubTab("History"))
+        add(com.example.ui.components.HubTab("Time"))
+      }
+      var tab by remember(task.id) { mutableStateOf(0) }
+      val tabName = tabs.getOrNull(tab)?.label ?: "Content"
+      androidx.compose.runtime.LaunchedEffect(task.id, tabName) {
+        if (tabName == "History") viewModel.loadTaskOccurrences(task.id)
+      }
+      com.example.ui.components.DetailTabs(tabs, tab, { tab = it })
+
+      when (tabName) {
+        "Content" -> TaskContentTab(task, uiState, viewModel, descDraft, { descDraft = it })
+        "Sub-Tasks" -> TaskSubtasksTab(task, viewModel, newSubtask, { newSubtask = it })
+        "History" -> TaskHistoryTab(task, uiState, viewModel)
+        "Time" -> TaskTimeTab(task, uiState, viewModel)
+      }
+      Spacer(Modifier.height(120.dp))
+    }
+  }
+}
+
+@Composable
+private fun TaskViewDetails(
+  task: com.example.model.Task,
+  uiState: com.example.viewmodel.MyDayUiState,
+  viewModel: MyDayViewModel,
+) {
         Column {
           OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
           OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
@@ -273,106 +277,188 @@ fun TaskDetailScreen(
             Text("Shopping list", style = MaterialTheme.typography.bodyMedium)
           }
           if (task.taxonomyArea != null) DetailField("Area", task.taxonomyArea)
-        }
-      }
 
-      if (task.noteIds.isNotEmpty()) {
-        SectionHeader("Linked notes", task.noteIds.size)
-        task.noteIds.forEach { nid ->
-          val n = uiState.notes.firstOrNull { it.id == nid }
-          androidx.compose.material3.TextButton(onClick = { viewModel.openNoteDetail(nid) }) {
-            Text((n?.title ?: "Open note") + "  →")
+          if (task.noteIds.isNotEmpty()) {
+            SectionHeader("Linked notes", task.noteIds.size)
+            task.noteIds.forEach { nid ->
+              val n = uiState.notes.firstOrNull { it.id == nid }
+              androidx.compose.material3.TextButton(onClick = { viewModel.openNoteDetail(nid) }) {
+                Text((n?.title ?: "Open note") + "  →")
+              }
+            }
+          }
+          if (task.projectName != null) {
+            androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {
+              Text("Open ${task.projectName}  →")
+            }
           }
         }
-      }
-      if (task.projectName != null) {
-        androidx.compose.material3.TextButton(onClick = { task.projectId?.let { viewModel.openProjectDetail(it) } }) {
-          Text("Open ${task.projectName}  →")
-        }
-      }
+}
 
-      // Description — no empty box: a quiet "＋" prompt until there's text.
-      Spacer(Modifier.height(12.dp))
-      var descEditing by remember(task.id) { mutableStateOf(false) }
-      if (task.description.isBlank() && !descEditing && descDraft.isBlank()) {
-        androidx.compose.material3.TextButton(
-          onClick = { descEditing = true },
-          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(Modifier.size(6.dp))
-          Text("Add description")
-        }
-      } else {
-        OutlinedTextField(
-          value = descDraft,
-          onValueChange = { descDraft = it },
-          placeholder = { Text("Description") },
-          modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        )
-        if (descDraft != task.description) {
-          androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft); descEditing = false }) {
-            Text("Save")
-          }
+@Composable
+private fun TaskContentTab(
+  task: com.example.model.Task,
+  uiState: com.example.viewmodel.MyDayUiState,
+  viewModel: MyDayViewModel,
+  descDraft: String,
+  onDescChange: (String) -> Unit,
+) {
+  Column {
+    var descEditing by remember(task.id) { mutableStateOf(false) }
+    if (task.description.isBlank() && !descEditing && descDraft.isBlank()) {
+      androidx.compose.material3.TextButton(
+        onClick = { descEditing = true },
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+      ) {
+        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(6.dp))
+        Text("Add description")
+      }
+    } else {
+      OutlinedTextField(
+        value = descDraft,
+        onValueChange = onDescChange,
+        placeholder = { Text("Description") },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+      )
+      if (descDraft != task.description) {
+        androidx.compose.material3.TextButton(onClick = { viewModel.setTaskDescription(task.id, descDraft); descEditing = false }) {
+          Text("Save")
         }
       }
+    }
 
-      // Sub-tasks — a checklist; a quiet "＋" prompt when there are none.
-      var addingSub by remember(task.id) { mutableStateOf(false) }
-      if (task.subTasks.isEmpty() && !addingSub) {
-        androidx.compose.material3.TextButton(
-          onClick = { addingSub = true },
-          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(Modifier.size(6.dp))
-          Text("Add subtask")
-        }
-      } else {
-        SectionHeader(
-          "Subtasks " + task.subTasks.count { it.isCompleted } + "/" + task.subTasks.size,
-        )
-        task.subTasks.forEach { st ->
-          Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-              .clickable { viewModel.toggleSubTask(task.id, st.id) }.padding(vertical = 6.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Icon(
-              if (st.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
-              contentDescription = null,
-              tint = if (st.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-              modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.size(10.dp))
-            Text(
-              st.name,
-              style = MaterialTheme.typography.bodyMedium,
-              color = if (st.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-            )
-          }
-        }
-        OutlinedTextField(
-          value = newSubtask,
-          onValueChange = { newSubtask = it },
-          placeholder = { Text("New subtask") },
-          singleLine = true,
-          keyboardActions = KeyboardActions(onDone = {
-            if (newSubtask.isNotBlank()) { viewModel.addSubTask(task.id, newSubtask.trim()); newSubtask = "" }
-          }),
-          modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        )
-      }
-
-      // Notes — the Notion page body, only when there is one.
-      if (uiState.detailBodyLoading) {
+    when {
+      uiState.detailBodyLoading -> {
         Spacer(Modifier.height(12.dp))
-        Text("Loading notes…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      } else if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == task.id) {
-        SectionHeader("Notes")
+        Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      !uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == task.id -> {
+        Spacer(Modifier.height(8.dp))
         MarkdownBody(uiState.detailBody!!)
       }
-      Spacer(Modifier.height(120.dp))
+    }
+  }
+}
+
+@Composable
+private fun TaskSubtasksTab(
+  task: com.example.model.Task,
+  viewModel: MyDayViewModel,
+  newSubtask: String,
+  onNewSubtaskChange: (String) -> Unit,
+) {
+  Column {
+    if (task.subTasks.isNotEmpty()) {
+      SectionHeader("Subtasks " + task.subTasks.count { it.isCompleted } + "/" + task.subTasks.size)
+    }
+    task.subTasks.forEach { st ->
+      Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+          .clickable { viewModel.toggleSubTask(task.id, st.id) }.padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Icon(
+          if (st.isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+          contentDescription = null,
+          tint = if (st.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+          modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.size(10.dp))
+        Text(
+          st.name,
+          style = MaterialTheme.typography.bodyMedium,
+          color = if (st.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        )
+      }
+    }
+    OutlinedTextField(
+      value = newSubtask,
+      onValueChange = onNewSubtaskChange,
+      placeholder = { Text("New subtask") },
+      singleLine = true,
+      keyboardActions = KeyboardActions(onDone = {
+        if (newSubtask.isNotBlank()) { viewModel.addSubTask(task.id, newSubtask.trim()); onNewSubtaskChange("") }
+      }),
+      modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    )
+  }
+}
+
+@Composable
+private fun TaskHistoryTab(
+  task: com.example.model.Task,
+  uiState: com.example.viewmodel.MyDayUiState,
+  viewModel: MyDayViewModel,
+) {
+  val occ = if (uiState.taskOccurrencesForId == task.id) uiState.taskOccurrences else emptyList()
+  Column {
+    Text(
+      "Past occurrences of this recurring task.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(vertical = 8.dp),
+    )
+    when {
+      uiState.taskOccurrencesLoading && occ.isEmpty() ->
+        Text("Loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      occ.isEmpty() ->
+        EmptyLine("No occurrences logged yet.")
+      else -> occ.forEach { o ->
+        Row(
+          modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .clickable { viewModel.openTaskDetail(o.id) }.padding(vertical = 8.dp, horizontal = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Icon(
+            if (o.isDone) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+            contentDescription = null,
+            tint = if (o.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(18.dp),
+          )
+          Spacer(Modifier.size(10.dp))
+          Column(Modifier.weight(1f)) {
+            Text(o.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+            val meta = listOfNotNull(
+              o.completionDate?.substringBefore('T')?.let { com.example.data.DateUtils.displayLabel(it) }?.ifBlank { null }
+                ?: o.due?.let { com.example.data.DateUtils.displayLabel(it) }?.ifBlank { null },
+              statusLabel(o.status),
+            ).joinToString("  ·  ")
+            if (meta.isNotBlank()) {
+              Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun TaskTimeTab(
+  task: com.example.model.Task,
+  uiState: com.example.viewmodel.MyDayUiState,
+  viewModel: MyDayViewModel,
+) {
+  val logged = uiState.workSessions.filter { it.taskId == task.id }
+  val mins = logged.sumOf { s -> s.durationMinutes ?: 0 }
+  Column {
+    val summary = when {
+      logged.isEmpty() -> "No sessions yet"
+      mins >= 60 -> "${mins / 60}h ${mins % 60}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
+      else -> "${mins}m  ·  ${logged.size} session${if (logged.size == 1) "" else "s"}"
+    }
+    Text(summary, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 8.dp))
+    androidx.compose.material3.TextButton(onClick = { viewModel.openTaskWorkSessions(task.id) }) {
+      Text("Open full history & charts  →")
+    }
+    logged.take(10).forEach { s ->
+      Text(
+        listOfNotNull(s.timeRange.ifBlank { null }, s.duration.ifBlank { null }).joinToString("  ·  "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 4.dp),
+      )
     }
   }
 }

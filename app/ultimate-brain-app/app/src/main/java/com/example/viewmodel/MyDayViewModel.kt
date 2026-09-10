@@ -274,6 +274,10 @@ data class MyDayUiState(
   val taskWorkSessions: List<WorkSessionModel> = emptyList(),
   val taskWorkSessionsForId: String? = null,
   val taskWorkSessionsLoading: Boolean = false,
+  // Per-task recurring occurrences (the "History" tab on the task detail page).
+  val taskOccurrences: List<Task> = emptyList(),
+  val taskOccurrencesForId: String? = null,
+  val taskOccurrencesLoading: Boolean = false,
 
   // Global Search State
   val globalSearchQuery: String = "",
@@ -936,6 +940,31 @@ class MyDayViewModel : ViewModel() {
         else it.copy(
           taskWorkSessions = sessions ?: it.taskWorkSessions,
           taskWorkSessionsLoading = false,
+        )
+      }
+    }
+  }
+
+  /** Load a recurring task's past occurrences for the History tab (lazy, cached per task). */
+  fun loadTaskOccurrences(taskId: String) {
+    val task = _uiState.value.tasks.firstOrNull { it.id == taskId } ?: return
+    if (_uiState.value.taskOccurrencesForId == taskId && _uiState.value.taskOccurrences.isNotEmpty()) return
+    val seed = task.occurrenceIds.mapNotNull { id -> _uiState.value.tasks.firstOrNull { it.id == id } }
+    _uiState.update {
+      it.copy(
+        taskOccurrences = seed,
+        taskOccurrencesForId = taskId,
+        taskOccurrencesLoading = repo.isRemote && task.occurrenceIds.isNotEmpty(),
+      )
+    }
+    if (!repo.isRemote || task.occurrenceIds.isEmpty()) return
+    viewModelScope.launch {
+      val loaded = try { repo.loadOccurrencesForTask(task.occurrenceIds) } catch (_: Exception) { null }
+      _uiState.update {
+        if (it.taskOccurrencesForId != taskId) it
+        else it.copy(
+          taskOccurrences = loaded?.takeIf { l -> l.isNotEmpty() } ?: it.taskOccurrences,
+          taskOccurrencesLoading = false,
         )
       }
     }

@@ -583,6 +583,20 @@ class UbRepository(
     pages.filter { !it.archived && !it.inTrash }.map { NotionMappers.toWorkSession(it, emptyMap()) }
   }
 
+  /** Resolve a recurring task's [ids] (its `Occurrences` relation) to full tasks, newest completion first. */
+  suspend fun loadOccurrencesForTask(ids: List<String>): List<Task> = withContext(Dispatchers.IO) {
+    val c = client ?: return@withContext emptyList()
+    if (ids.isEmpty()) return@withContext emptyList()
+    ids.take(50).mapNotNull { id ->
+      try {
+        val page = c.api.getPage(id)
+        if (page.archived || page.inTrash) null else NotionMappers.toTask(page, emptyMap(), emptyMap())
+      } catch (_: Exception) {
+        null
+      }
+    }.sortedByDescending { it.completionDate ?: it.due ?: "" }
+  }
+
   /** Create a task; returns the new page id, or null when running on dummy data. */
   suspend fun createTask(
     name: String,
