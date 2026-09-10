@@ -489,6 +489,17 @@ Cloudflare Tunnel (gives HTTPS), or LAN IP (home only). Default plan:
     ISO-offset datetimes; new `Task.dueStartIso`. Entry: "Time-block"
     link by the Today "On today" header.
   - Follow-up: drag tray chip onto the timeline; zoom; week view.
+- **Phase 5 — Hermes chat** (item 13) — `f23edbe`
+  - Chat tab replaces Notes (Notes → More hub). `data/hermes/*` (config,
+    OkHttp client + SSE reader, repo), `ChatViewModel` + `ChatScreen`
+    (streaming thread, tool chips, stop, approval prompt, history drawer),
+    Settings "Hermes chat" section.
+  - **Server:** API server enabled on the Pi — `API_SERVER_ENABLED/KEY/
+    HOST(=100.123.210.71)/PORT(=8642)` in `~/.hermes/.env`. Key lives in
+    the app's gitignored `.env`.
+  - Reachable only when the phone is on the Tailscale network.
+  - Follow-up: image attach; approval-event shape is a guess (refine when
+    one fires); markdown code-block copy button.
   - Deferred: true collapsible toggle rendering in `MarkdownBody`
     (INFRA-C1); Project Tasks List/Board/Calendar switch; the Notion tag/
     project hub's extra sections (Web Clips, People, Journal accordion);
