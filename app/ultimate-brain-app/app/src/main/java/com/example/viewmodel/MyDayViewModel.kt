@@ -60,6 +60,7 @@ enum class AppScreen {
   TAG_DETAIL,
   WORK_SESSIONS,
   TASK_WORK_SESSIONS,
+  DAY_TIMELINE,
   SETTINGS,
   GLOBAL_SEARCH,
   MORE_HUB,
@@ -1247,12 +1248,30 @@ class MyDayViewModel : ViewModel() {
     patchTask(taskId) {
       it.copy(
         due = iso?.substringBefore('T'),
+        dueStartIso = iso,
         dueEndIso = endIso,
         dueDisplay = com.example.data.DateUtils.displayLabel(iso).ifBlank { "" },
         isOverdue = iso != null && com.example.data.DateUtils.bucket(iso.substringBefore('T')) == com.example.data.DateUtils.DueBucket.OVERDUE && !it.isDone,
       )
     }
     remoteWrite { it.setTaskDue(taskId, iso, endIso) }
+  }
+
+  /**
+   * Time-block a task: [startIso] / [endIso] are full local datetimes with an
+   * offset (e.g. "2026-09-10T09:00:00+05:30"). Used by the day-view timeline.
+   */
+  fun setTaskTimeBlock(taskId: String, startIso: String, endIso: String) {
+    patchTask(taskId) {
+      it.copy(
+        due = startIso.substringBefore('T'),
+        dueStartIso = startIso,
+        dueEndIso = endIso,
+        dueDisplay = com.example.data.DateUtils.displayLabel(startIso).ifBlank { "" },
+        isOverdue = com.example.data.DateUtils.bucket(startIso.substringBefore('T')) == com.example.data.DateUtils.DueBucket.OVERDUE && !it.isDone,
+      )
+    }
+    remoteWrite { it.setTaskDue(taskId, startIso, endIso) }
   }
 
   fun setTaskProjectRelation(taskId: String, projectId: String?) {

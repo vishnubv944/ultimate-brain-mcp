@@ -46,6 +46,7 @@ data class Task(
   val energy: String? = null,       // High | Low
   val location: String? = null,     // Home | Office | Errand
   val smartList: String? = null,    // Do Next | Delegated | Someday
+  val dueStartIso: String? = null,  // full Due start incl. time-of-day when set
   val dueEndIso: String? = null,    // for time-blocked ranges
   val snoozeIso: String? = null,
   val waitIso: String? = null,

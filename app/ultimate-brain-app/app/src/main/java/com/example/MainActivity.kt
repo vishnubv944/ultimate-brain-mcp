@@ -173,6 +173,9 @@ class MainActivity : ComponentActivity() {
           composable("task_work_sessions") {
             TaskWorkSessionsScreen(viewModel = viewModel)
           }
+          composable("day_timeline") {
+            com.example.ui.screens.DayTimelineScreen(viewModel = viewModel)
+          }
           composable("settings") {
             SettingsScreen(viewModel = viewModel)
           }
@@ -217,6 +220,7 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.TAG_DETAIL -> "tag_detail"
   AppScreen.WORK_SESSIONS -> "work_sessions"
   AppScreen.TASK_WORK_SESSIONS -> "task_work_sessions"
+  AppScreen.DAY_TIMELINE -> "day_timeline"
   AppScreen.SETTINGS -> "settings"
   AppScreen.GLOBAL_SEARCH -> "global_search"
   AppScreen.MORE_HUB -> "more_hub"

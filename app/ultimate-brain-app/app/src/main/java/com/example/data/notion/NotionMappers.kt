@@ -71,6 +71,7 @@ object NotionMappers {
       energy = p.prop("Energy")?.selectName(),
       location = p.prop("Location")?.selectName(),
       smartList = p.prop("Smart List")?.selectName(),
+      dueStartIso = rawDue,
       dueEndIso = dueEnd,
       snoozeIso = p.prop("Snooze")?.dateStart(),
       waitIso = p.prop("Wait Date")?.dateStart(),

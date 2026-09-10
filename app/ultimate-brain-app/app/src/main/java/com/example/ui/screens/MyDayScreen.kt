@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
@@ -193,7 +194,16 @@ fun MyDayScreen(
         }
       }
 
-      item("ontoday-hdr") { SectionHeader("On today", shortlist.size) }
+      item("ontoday-hdr") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          SectionHeader("On today", shortlist.size, Modifier.weight(1f))
+          androidx.compose.material3.TextButton(onClick = { viewModel.navigateTo(com.example.viewmodel.AppScreen.DAY_TIMELINE) }) {
+            Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Time-block")
+          }
+        }
+      }
       if (shortlist.isEmpty()) {
         item("ontoday-empty") {
           EmptyLine(
