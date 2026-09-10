@@ -1195,6 +1195,13 @@ class MyDayViewModel : ViewModel() {
     remoteWrite { it.setPageTitle(noteId, "Name", trimmed) }
   }
 
+  fun renameTag(tagId: String, name: String) {
+    val trimmed = name.trim()
+    if (trimmed.isBlank()) return
+    _uiState.update { s -> s.copy(tags = s.tags.map { if (it.id == tagId) it.copy(name = trimmed) else it }) }
+    remoteWrite { it.setPageTitle(tagId, "Name", trimmed) }
+  }
+
   fun updateTaskPriority(taskId: String, newPriority: Priority?) {
     _uiState.update { state ->
       val updated = state.tasks.map { task ->

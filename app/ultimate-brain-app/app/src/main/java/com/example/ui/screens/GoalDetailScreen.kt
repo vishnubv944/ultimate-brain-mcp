@@ -14,8 +14,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.data.DateUtils
+import com.example.ui.components.DateFieldRow
 import com.example.ui.components.DetailScaffold
 import com.example.ui.components.EmptyLine
 import com.example.ui.components.EntityRow
@@ -76,24 +79,44 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     }
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
-        Spacer(Modifier.height(8.dp))
-        com.example.ui.components.DetailTitle(
-          goal.name,
-          { viewModel.renameGoal(goal.id, it) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        val meta = buildList {
-          add(goal.status)
-          if (goal.deadline.isNotBlank() && goal.deadline != "—") add(goal.deadline)
-          if (goal.tagArea.isNotBlank()) add(goal.tagArea)
-        }
-        Text(
-          meta.joinToString("  ·  "),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Spacer(Modifier.height(4.dp))
+        com.example.ui.components.EntityHubHeader(
+          title = goal.name,
+          onRename = { viewModel.renameGoal(goal.id, it) },
           modifier = Modifier.padding(horizontal = TodayPad),
+          icon = Icons.Default.EmojiEvents,
+          iconTint = MaterialTheme.colorScheme.primary,
+          viewDetails = {
+            DateFieldRow("Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) })
+          },
+          propertyStrip = {
+            com.example.ui.components.PropertyChipRow {
+              com.example.ui.components.SelectChip(
+                Icons.Outlined.CheckCircle,
+                "Status", goal.status,
+                uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
+                { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
+                allowClear = false,
+              )
+              com.example.ui.components.SelectChip(
+                Icons.Default.Tag,
+                "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
+                uiState.tags.map { it.name },
+                { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+              )
+              com.example.ui.components.PropertyChip(
+                Icons.Default.TrendingUp, "Progress",
+                goal.aggregatedProgressText.ifBlank { "0%" },
+                onClick = {},
+              )
+              com.example.ui.components.DateChip(
+                Icons.Default.Event,
+                "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
+              )
+            }
+          },
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
         StatCard(
           listOf(
             Stat(goal.aggregatedProgressText.ifBlank { "0%" }, "progress"),
@@ -102,29 +125,11 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           ),
           Modifier.padding(horizontal = TodayPad),
         )
-        Spacer(Modifier.height(8.dp))
-        com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
-          com.example.ui.components.SelectChip(
-            Icons.Outlined.CheckCircle,
-            "Status", goal.status,
-            uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
-            { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
-            allowClear = false,
-          )
-          com.example.ui.components.DateChip(
-            Icons.Default.Event,
-            "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
-          )
-          com.example.ui.components.DateChip(
-            Icons.Outlined.Flag,
-            "Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) },
-          )
-          com.example.ui.components.SelectChip(
-            Icons.Default.Tag,
-            "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
-            uiState.tags.map { it.name },
-            { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
-          )
+        if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == goal.id &&
+          com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+        ) {
+          SectionHeader("Goal Overview", modifier = Modifier.padding(horizontal = TodayPad))
+          MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))
         }
       }
 
@@ -191,14 +196,6 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         }
       }
 
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == goal.id &&
-        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
-      ) {
-        item {
-          SectionHeader("Notes", modifier = Modifier.padding(horizontal = TodayPad))
-          MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))
-        }
-      }
       item { Spacer(Modifier.height(96.dp)) }
     }
   }

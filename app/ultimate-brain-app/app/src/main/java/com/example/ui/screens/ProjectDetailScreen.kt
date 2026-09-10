@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Rocket
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,6 +48,7 @@ import com.example.ui.components.TaskRow
 import com.example.ui.components.ThinDivider
 import com.example.ui.components.TodayPad
 import com.example.ui.theme.entityNotes
+import com.example.ui.theme.entityProjects
 import com.example.viewmodel.MyDayViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,22 +80,40 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
 
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       item {
-        Spacer(Modifier.height(8.dp))
-        com.example.ui.components.DetailTitle(
-          project.name,
-          { viewModel.renameProject(project.id, it) },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        val meta = buildList {
-          add(project.status)
-          project.goalName?.let { add("toward: $it") }
-          if (project.deadline.isNotBlank() && project.deadline != "—") add(project.deadline)
-        }
-        Text(
-          meta.joinToString("  ·  "),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Spacer(Modifier.height(4.dp))
+        com.example.ui.components.EntityHubHeader(
+          title = project.name,
+          onRename = { viewModel.renameProject(project.id, it) },
           modifier = Modifier.padding(horizontal = TodayPad),
+          icon = Icons.Default.Rocket,
+          iconTint = MaterialTheme.colorScheme.entityProjects,
+          viewDetails = { ProjectViewDetails(project, uiState, viewModel) },
+          propertyStrip = {
+            com.example.ui.components.PropertyChipRow {
+              com.example.ui.components.SelectChip(
+                Icons.Outlined.CheckCircle,
+                "Status", project.status,
+                uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
+                { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
+                allowClear = false,
+              )
+              com.example.ui.components.DateChip(
+                Icons.Default.Event,
+                "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
+              )
+              com.example.ui.components.PropertyChip(
+                Icons.Default.TrendingUp, "Progress",
+                project.progressText.ifBlank { "0%" },
+                onClick = {},
+              )
+              com.example.ui.components.SelectChip(
+                Icons.Default.TrackChanges,
+                "Goal", project.goalName,
+                uiState.goals.map { it.name },
+                { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
+              )
+            }
+          },
         )
         val pct = project.progress.coerceIn(0f, 1f)
         androidx.compose.material3.LinearProgressIndicator(
@@ -101,43 +122,62 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
           trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
         Text(
-          "${done.size} of ${done.size + open.size} tasks done" + if (project.progressText.isNotBlank()) "  ·  ${project.progressText}" else "",
+          "${done.size} of ${done.size + open.size} tasks done",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = TodayPad, vertical = 4.dp),
         )
-        Spacer(Modifier.height(8.dp))
-        com.example.ui.components.PropertyChipRow(Modifier.padding(horizontal = TodayPad)) {
-          com.example.ui.components.SelectChip(
-            Icons.Outlined.CheckCircle,
-            "Status", project.status,
-            uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
-            { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
-            allowClear = false,
+      }
+
+      item {
+        com.example.ui.components.HubSection(
+          "Tasks", Modifier.padding(horizontal = TodayPad), count = open.size + done.size,
+        ) {}
+      }
+      section("Open", open, viewModel)
+      section("Done", done, viewModel)
+
+      item {
+        com.example.ui.components.HubSection(
+          "Notes", Modifier.padding(horizontal = TodayPad), count = notes.size,
+        ) {}
+      }
+      if (notes.isEmpty()) {
+        item { EmptyLine("No linked notes.", Modifier.padding(horizontal = TodayPad)) }
+      } else {
+        itemsIndexed(notes, key = { _, n -> "note:${n.id}" }) { i, note ->
+          EntityRow(
+            title = note.title,
+            meta = note.type,
+            leadingDot = MaterialTheme.colorScheme.entityNotes,
+            onClick = { viewModel.openNoteDetail(note.id) },
+            onLongClick = { viewModel.openNoteQuickEdit(note.id) },
+            modifier = Modifier.padding(horizontal = TodayPad),
           )
-          com.example.ui.components.DateChip(
-            Icons.Default.Event,
-            "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
-          )
-          com.example.ui.components.SelectChip(
-            Icons.Default.TrackChanges,
-            "Goal", project.goalName,
-            uiState.goals.map { it.name },
-            { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
-          )
+          if (i < notes.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
         }
       }
 
-      section("Open tasks", open, viewModel)
+      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == project.id &&
+        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
+      ) {
+        item {
+          SectionHeader("About", modifier = Modifier.padding(horizontal = TodayPad))
+          MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))
+        }
+      }
+      item { Spacer(Modifier.height(96.dp)) }
+    }
+  }
+}
 
-      item {
-        var infoOpen by remember(project.id) { mutableStateOf(false) }
-        com.example.ui.components.ExpanderHeader(
-          "Project info", infoOpen, { infoOpen = !infoOpen },
-          Modifier.padding(horizontal = TodayPad),
-        )
-        androidx.compose.animation.AnimatedVisibility(visible = infoOpen) {
-          androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = TodayPad)) {
+@Composable
+private fun ProjectViewDetails(
+  project: com.example.model.ProjectModel,
+  uiState: com.example.viewmodel.MyDayUiState,
+  viewModel: MyDayViewModel,
+) {
+          androidx.compose.foundation.layout.Column {
             var reviewDraft by remember(project.id, project.reviewNotes) { mutableStateOf(project.reviewNotes) }
             Text("Review notes", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             androidx.compose.material3.OutlinedTextField(
@@ -167,39 +207,10 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
                 }
               }
             }
+            if (project.templateName != null) {
+              Text("Template: ${project.templateName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            }
           }
-        }
-      }
-
-      section("Done", done, viewModel)
-
-      item { SectionHeader("Notes", notes.size, Modifier.padding(horizontal = TodayPad)) }
-      if (notes.isEmpty()) {
-        item { EmptyLine("No linked notes.", Modifier.padding(horizontal = TodayPad)) }
-      } else {
-        itemsIndexed(notes, key = { _, n -> "note:${n.id}" }) { i, note ->
-          EntityRow(
-            title = note.title,
-            meta = note.type,
-            leadingDot = MaterialTheme.colorScheme.entityNotes,
-            onClick = { viewModel.openNoteDetail(note.id) },
-            modifier = Modifier.padding(horizontal = TodayPad),
-          )
-          if (i < notes.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
-        }
-      }
-
-      if (!uiState.detailBody.isNullOrBlank() && uiState.detailBodyForId == project.id &&
-        com.example.ui.components.markdownHasRenderableContent(uiState.detailBody!!)
-      ) {
-        item {
-          SectionHeader("About", modifier = Modifier.padding(horizontal = TodayPad))
-          MarkdownBody(uiState.detailBody!!, Modifier.padding(horizontal = TodayPad))
-        }
-      }
-      item { Spacer(Modifier.height(96.dp)) }
-    }
-  }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.section(
