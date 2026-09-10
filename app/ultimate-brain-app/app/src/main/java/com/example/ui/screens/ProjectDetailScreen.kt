@@ -214,6 +214,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(
       task = task,
       onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
       onClick = { viewModel.openTaskDetail(task.id) },
+      onLongClick = { viewModel.openTaskQuickEdit(task.id) },
       showProject = false,
       modifier = Modifier.padding(horizontal = TodayPad),
     )

@@ -113,6 +113,7 @@ class MainActivity : ComponentActivity() {
         // settings switch was a dead UI control.
         dynamicColor = uiState.dynamicColorEnabled,
       ) {
+        androidx.compose.foundation.layout.Box {
         NavHost(navController = navController, startDestination = "today") {
           composable("today") {
             MyDayScreen(
@@ -190,6 +191,8 @@ class MainActivity : ComponentActivity() {
           composable("recipes") { com.example.ui.screens.RecipesScreen(viewModel) }
           composable("recipe_detail") { com.example.ui.screens.RecipeDetailScreen(viewModel) }
           composable("meal_planner") { com.example.ui.screens.MealPlannerScreen(viewModel) }
+        }
+        com.example.ui.components.QuickEditSheetHost(viewModel)
         }
       }
     }

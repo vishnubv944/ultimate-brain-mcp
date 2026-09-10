@@ -203,6 +203,9 @@ data class MyDayUiState(
   val elapsedSeconds: Long = 0L,
   val isDoneExpanded: Boolean = false,
   val isQuickAddOpen: Boolean = false,
+  // Long-press quick-edit sheet targets (task / note id, or null when closed).
+  val quickEditTaskId: String? = null,
+  val quickEditNoteId: String? = null,
   val isSearchOpen: Boolean = false,
   val searchQuery: String = "",
   val eveningReviewStep: Int = 1, // legacy — the wizard was removed
@@ -1426,6 +1429,18 @@ class MyDayViewModel : ViewModel() {
 
   fun setQuickAddOpen(isOpen: Boolean) {
     _uiState.update { it.copy(isQuickAddOpen = isOpen) }
+  }
+
+  fun openTaskQuickEdit(taskId: String) {
+    _uiState.update { it.copy(quickEditTaskId = taskId, quickEditNoteId = null) }
+  }
+
+  fun openNoteQuickEdit(noteId: String) {
+    _uiState.update { it.copy(quickEditNoteId = noteId, quickEditTaskId = null) }
+  }
+
+  fun closeQuickEdit() {
+    _uiState.update { it.copy(quickEditTaskId = null, quickEditNoteId = null) }
   }
 
   fun setSearchOpen(isOpen: Boolean) {

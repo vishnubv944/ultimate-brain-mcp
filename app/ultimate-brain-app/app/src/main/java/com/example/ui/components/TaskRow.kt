@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,7 @@ import com.example.ui.theme.errorAccent
  * background (no per-item card) — leading complete-toggle, title, and a single
  * muted metadata line. Optional [trailing] slot for a per-context action.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TaskRow(
   task: Task,
@@ -46,6 +49,7 @@ fun TaskRow(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   showProject: Boolean = true,
+  onLongClick: (() -> Unit)? = null,
   trailing: @Composable (() -> Unit)? = null,
 ) {
   val overdue = !task.isDone && DateUtils.bucket(task.due) == DateUtils.DueBucket.OVERDUE
@@ -64,7 +68,7 @@ fun TaskRow(
     modifier = modifier
       .fillMaxWidth()
       .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-      .clickable(onClick = onClick)
+      .combinedClickable(onClick = onClick, onLongClick = onLongClick)
       .heightIn(min = 56.dp)
       .padding(vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,

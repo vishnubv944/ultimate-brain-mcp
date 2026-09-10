@@ -1,7 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.dp
  * Provide exactly one leading marker: [leadingDot] (a colored dot) or
  * [leadingIcon].
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EntityRow(
   title: String,
@@ -50,6 +53,7 @@ fun EntityRow(
   leadingIconTint: Color = Color.Unspecified,
   leadingCheck: Boolean? = null,
   onLeadingClick: (() -> Unit)? = null,
+  onLongClick: (() -> Unit)? = null,
   strikethrough: Boolean = false,
   trailing: @Composable (() -> Unit)? = null,
 ) {
@@ -57,7 +61,7 @@ fun EntityRow(
     modifier = modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(12.dp))
-      .clickable(onClick = onClick)
+      .combinedClickable(onClick = onClick, onLongClick = onLongClick)
       .heightIn(min = 56.dp)
       .padding(vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,

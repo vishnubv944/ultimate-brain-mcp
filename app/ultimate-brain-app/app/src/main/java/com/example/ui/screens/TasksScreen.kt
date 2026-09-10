@@ -239,6 +239,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.taskRows(
       task = task,
       onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
       onClick = { viewModel.openTaskDetail(task.id) },
+      onLongClick = { viewModel.openTaskQuickEdit(task.id) },
       modifier = Modifier.padding(horizontal = TodayPad),
     )
     if (index < tasks.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))

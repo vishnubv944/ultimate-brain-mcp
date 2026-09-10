@@ -98,6 +98,7 @@ fun NotesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             meta = noteMeta(note),
             leadingDot = MaterialTheme.colorScheme.entityNotes,
             onClick = { viewModel.openNoteDetail(note.id) },
+            onLongClick = { viewModel.openNoteQuickEdit(note.id) },
             trailing = {
               IconButton(onClick = { viewModel.toggleNoteFavorite(note.id) }) {
                 Icon(

@@ -209,6 +209,7 @@ fun MyDayScreen(
             task = task,
             onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
             onClick = { viewModel.openTaskDetail(task.id) },
+            onLongClick = { viewModel.openTaskQuickEdit(task.id) },
             trailing = {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 if (focusSession == null) {
@@ -337,6 +338,7 @@ private fun BrowseTaskRow(task: com.example.model.Task, onToday: Boolean, viewMo
     task = task,
     onToggleComplete = { viewModel.toggleTaskCompletion(task.id) },
     onClick = { viewModel.openTaskDetail(task.id) },
+    onLongClick = { viewModel.openTaskQuickEdit(task.id) },
     trailing = {
       IconButton(onClick = { viewModel.toggleMyDay(task.id) }) {
         Icon(
