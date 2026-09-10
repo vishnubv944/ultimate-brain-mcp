@@ -483,6 +483,12 @@ Cloudflare Tunnel (gives HTTPS), or LAN IP (home only). Default plan:
   - P3.1 Task detail: tabs Content / Sub-Tasks / History (recurring
     `Occurrences`) / Time — `38599ce`
   - P3.2-3.5 Note / Project / Goal / Tag detail — `2d78e48`
+- **Phase 4 — day-view time-blocking** (item 3) — `63c7336`
+  - `DayTimelineScreen`: hour rail + now-line + unscheduled tray +
+    draggable/resizable blocks; `VM.setTaskTimeBlock` writes full
+    ISO-offset datetimes; new `Task.dueStartIso`. Entry: "Time-block"
+    link by the Today "On today" header.
+  - Follow-up: drag tray chip onto the timeline; zoom; week view.
   - Deferred: true collapsible toggle rendering in `MarkdownBody`
     (INFRA-C1); Project Tasks List/Board/Calendar switch; the Notion tag/
     project hub's extra sections (Web Clips, People, Journal accordion);
