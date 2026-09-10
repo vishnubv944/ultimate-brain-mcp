@@ -404,6 +404,8 @@ data class MyDayUiState(
     val cf = customFilterFor(FilterScope.TASKS, key)
     val base =
       if (cf != null) tasks.filter { FilterEngine.matches(it.filterRow(), cf) }
+      else if (key == "ACTIVE_PROJECTS")
+        tasks.filter { !it.isDone && it.projectId != null && it.projectId in activeProjectIds }
       else tasks.filter { BuiltinFilters.taskMatches(key, it) }
     return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() }
     else if (key == "DONE") base.sortedByDescending { it.completionDate ?: "" }

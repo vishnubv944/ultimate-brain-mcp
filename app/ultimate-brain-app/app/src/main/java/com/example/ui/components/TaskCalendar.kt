@@ -61,6 +61,7 @@ fun TaskCalendar(
   onMonth: (YearMonth) -> Unit,
   onSelect: (LocalDate) -> Unit,
   modifier: Modifier = Modifier,
+  weekMode: Boolean = false,
 ) {
   val today = LocalDate.now()
   val dueByDay: Map<LocalDate, Int> = androidx.compose.runtime.remember(tasks) {
@@ -72,15 +73,22 @@ fun TaskCalendar(
   }
 
   val first = month.atDay(1)
-  val gridStart = first.minusDays((first.dayOfWeek.value - 1).toLong())
+  val monthGridStart = first.minusDays((first.dayOfWeek.value - 1).toLong())
+  val weekStart = selected.minusDays((selected.dayOfWeek.value - 1).toLong())
+  val gridStart = if (weekMode) weekStart else monthGridStart
+  val weekCount = if (weekMode) 1 else 6
 
-  var dragTotal by remember(month) { mutableFloatStateOf(0f) }
-  val swipe = Modifier.pointerInput(month) {
+  fun shiftBack() = if (weekMode) onSelect(selected.minusWeeks(1)) else onMonth(month.minusMonths(1))
+  fun shiftFwd() = if (weekMode) onSelect(selected.plusWeeks(1)) else onMonth(month.plusMonths(1))
+
+  val swipeKey = if (weekMode) weekStart else month.atDay(1)
+  var dragTotal by remember(swipeKey) { mutableFloatStateOf(0f) }
+  val swipe = Modifier.pointerInput(swipeKey) {
     detectHorizontalDragGestures(
       onDragEnd = {
         when {
-          dragTotal > 70f -> onMonth(month.minusMonths(1))
-          dragTotal < -70f -> onMonth(month.plusMonths(1))
+          dragTotal > 70f -> shiftBack()
+          dragTotal < -70f -> shiftFwd()
         }
         dragTotal = 0f
       },
@@ -93,18 +101,28 @@ fun TaskCalendar(
       Modifier.fillMaxWidth().padding(top = 8.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
+      val headerText =
+        if (weekMode) {
+          val end = weekStart.plusDays(6)
+          if (weekStart.month == end.month)
+            "${weekStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${end.dayOfMonth}"
+          else
+            "${weekStart.format(DateTimeFormatter.ofPattern("MMM d"))} – ${end.format(DateTimeFormatter.ofPattern("MMM d"))}"
+        } else {
+          month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+        }
       Text(
-        month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+        headerText,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.weight(1f),
       )
-      IconButton(onClick = { onMonth(month.minusMonths(1)) }) {
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
+      IconButton(onClick = { shiftBack() }) {
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
       }
       TextButton(onClick = { onMonth(YearMonth.from(today)); onSelect(today) }) { Text("Today") }
-      IconButton(onClick = { onMonth(month.plusMonths(1)) }) {
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
+      IconButton(onClick = { shiftFwd() }) {
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
       }
     }
 
@@ -122,11 +140,11 @@ fun TaskCalendar(
       }
     }
 
-    for (week in 0 until 6) {
+    for (week in 0 until weekCount) {
       Row(Modifier.fillMaxWidth()) {
         for (dow in 0 until 7) {
           val date = gridStart.plusDays((week * 7 + dow).toLong())
-          val inMonth = YearMonth.from(date) == month
+          val inMonth = weekMode || YearMonth.from(date) == month
           val isToday = date == today
           val isSelected = date == selected
           val count = dueByDay[date] ?: 0

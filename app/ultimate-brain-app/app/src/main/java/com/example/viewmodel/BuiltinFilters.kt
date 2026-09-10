@@ -19,7 +19,9 @@ import com.example.model.TaskStatus
 object BuiltinFilters {
 
   fun keys(scope: FilterScope): List<String> = when (scope) {
-    FilterScope.TASKS -> listOf("ALL", "MY_DAY", "TODAY", "OVERDUE", "HIGH_PRIORITY", "RECURRING", "DONE")
+    FilterScope.TASKS -> listOf(
+      "TODAY", "INBOX", "WEEK", "MONTH", "SCHEDULED", "NO_DUE", "RECURRING", "ACTIVE_PROJECTS", "ALL", "DONE",
+    )
     FilterScope.PROJECTS -> listOf("ALL", "ACTIVE", "DOING", "DONE", "ARCHIVED")
     FilterScope.NOTES -> listOf("ALL", "MEETING", "REFERENCE", "IDEA", "JOURNAL", "BOOK")
     FilterScope.GOALS -> listOf("ACTIVE", "ACHIEVED", "DROPPED")
@@ -31,6 +33,12 @@ object BuiltinFilters {
     "ALL" -> "All"
     "MY_DAY" -> "My Day"
     "TODAY" -> "Today"
+    "INBOX" -> "Inbox"
+    "WEEK" -> "Week"
+    "MONTH" -> "Month"
+    "SCHEDULED" -> "Scheduled"
+    "NO_DUE" -> "No due"
+    "ACTIVE_PROJECTS" -> "Active projects"
     "OVERDUE" -> "Overdue"
     "HIGH_PRIORITY" -> "High priority"
     "RECURRING" -> "Recurring"
@@ -63,6 +71,14 @@ object BuiltinFilters {
       "ALL" -> true
       "MY_DAY" -> t.isMyDay
       "TODAY" -> date == today
+      "INBOX" -> t.projectId == null && t.due == null
+      "WEEK" -> date != null && !date.isBefore(today) && !date.isAfter(today.plusDays(7))
+      "MONTH" -> date != null && java.time.YearMonth.from(date) == java.time.YearMonth.from(today)
+      "SCHEDULED" -> t.due != null
+      "NO_DUE" -> t.due == null
+      // ACTIVE_PROJECTS needs the live project list; MyDayUiState.tasksMatching
+      // handles it. This fallback keeps custom-filter / count paths sane.
+      "ACTIVE_PROJECTS" -> t.projectId != null
       "OVERDUE" -> date != null && date.isBefore(today)
       "HIGH_PRIORITY" -> t.priority == Priority.HIGH
       "RECURRING" -> t.isRecurring

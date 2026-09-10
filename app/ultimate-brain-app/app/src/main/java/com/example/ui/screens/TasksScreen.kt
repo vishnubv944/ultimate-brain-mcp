@@ -69,8 +69,11 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   }
 
   val selKey = uiState.selectedChipKey(com.example.model.FilterScope.TASKS)
+  val forceCalendar = selKey == "WEEK" || selKey == "MONTH"
+  val weekMode = selKey == "WEEK"
 
-  var calendarView by remember { mutableStateOf(false) }
+  var calendarToggle by remember { mutableStateOf(false) }
+  val calendarView = calendarToggle || forceCalendar
   var calMonth by remember { mutableStateOf(java.time.YearMonth.now()) }
   var calSelected by remember { mutableStateOf(java.time.LocalDate.now()) }
 
@@ -81,11 +84,13 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
     modifier = modifier,
     snackbarHost = snackbarHostState,
     actions = {
-      IconButton(onClick = { calendarView = !calendarView }) {
-        Icon(
-          if (calendarView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.CalendarMonth,
-          contentDescription = if (calendarView) "List view" else "Calendar view",
-        )
+      if (!forceCalendar) {
+        IconButton(onClick = { calendarToggle = !calendarToggle }) {
+          Icon(
+            if (calendarView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.CalendarMonth,
+            contentDescription = if (calendarView) "List view" else "Calendar view",
+          )
+        }
       }
       IconButton(onClick = { viewModel.setSearchOpen(true) }) {
         Icon(Icons.Default.Search, contentDescription = "Search")
@@ -103,6 +108,12 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   ) { innerPadding ->
     LazyColumn(modifier = Modifier.padding(innerPadding)) {
       if (calendarView) {
+        if (forceCalendar) {
+          item("cal-filter") {
+            com.example.ui.components.FilterBar(viewModel, com.example.model.FilterScope.TASKS)
+            Spacer(Modifier.height(4.dp))
+          }
+        }
         item("cal") {
           com.example.ui.components.TaskCalendar(
             tasks = uiState.tasks,
@@ -110,6 +121,7 @@ fun TasksScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             selected = calSelected,
             onMonth = { calMonth = it },
             onSelect = { calSelected = it },
+            weekMode = weekMode,
           )
         }
         item("cal-hdr") {
