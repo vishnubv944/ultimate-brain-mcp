@@ -30,6 +30,9 @@ import com.example.ui.components.BottomNavDestination
 import com.example.ui.components.EmptyLine
 import com.example.ui.components.EntityRow
 import com.example.ui.components.FilterOption
+import com.example.ui.components.groupSections
+import com.example.ui.components.groupedRows
+import com.example.viewmodel.BuiltinFilters
 import com.example.ui.components.ScreenScaffold
 import com.example.ui.components.SegmentedFilter
 import com.example.ui.components.ThinDivider
@@ -51,7 +54,12 @@ private val PROJECT_FILTERS = listOf(
 @Composable
 fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val list = uiState.projectsMatching(uiState.selectedChipKey(com.example.model.FilterScope.PROJECTS))
+  val selKey = uiState.selectedChipKey(com.example.model.FilterScope.PROJECTS)
+  val list = uiState.projectsMatching(selKey)
+  val sections = groupSections(list, BuiltinFilters.PROJECT_GROUP_ORDER) {
+    BuiltinFilters.projectGroup(selKey, it)
+  }
+  val groupExpanded = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
   var showCreate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
   if (showCreate) com.example.ui.components.NameDialog("project", { showCreate = false }) { viewModel.createNewProject(it) }
 
@@ -89,6 +97,24 @@ fun ProjectsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             Modifier.padding(horizontal = TodayPad),
             actionLabel = "New project",
             onAction = { showCreate = true },
+          )
+        }
+      } else if (sections != null) {
+        groupedRows(
+          sections = sections,
+          expanded = groupExpanded,
+          rowKey = { it.id },
+          headerPadding = Modifier.padding(horizontal = TodayPad),
+          dividerPadding = Modifier.padding(horizontal = TodayPad),
+        ) { project ->
+          EntityRow(
+            title = project.name,
+            meta = projectMeta(project),
+            leadingIcon = Icons.Default.Folder,
+            leadingIconTint = MaterialTheme.colorScheme.entityProjects,
+            strikethrough = project.status == "Done",
+            onClick = { viewModel.openProjectDetail(project.id) },
+            modifier = Modifier.padding(horizontal = TodayPad),
           )
         }
       } else {

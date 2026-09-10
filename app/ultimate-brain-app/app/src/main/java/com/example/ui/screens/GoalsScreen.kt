@@ -28,6 +28,9 @@ import com.example.ui.components.DetailScaffold
 import com.example.ui.components.EmptyLine
 import com.example.ui.components.EntityRow
 import com.example.ui.components.FilterOption
+import com.example.ui.components.groupSections
+import com.example.ui.components.groupedRows
+import com.example.viewmodel.BuiltinFilters
 import com.example.ui.components.Stat
 import com.example.ui.components.StatCard
 import com.example.ui.components.SegmentedFilter
@@ -47,7 +50,10 @@ private val GOAL_FILTERS = listOf(
 @Composable
 fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   val uiState by viewModel.uiState.collectAsState()
-  val list = uiState.goalsMatching(uiState.selectedChipKey(com.example.model.FilterScope.GOALS))
+  val selKey = uiState.selectedChipKey(com.example.model.FilterScope.GOALS)
+  val list = uiState.goalsMatching(selKey)
+  val sections = groupSections(list, emptyList()) { BuiltinFilters.goalGroup(selKey, it) }
+  val groupExpanded = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
   val active = uiState.goals.count { it.status == "Active" }
   val achieved = uiState.goals.count { it.status == "Achieved" }
   var showCreate by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -90,6 +96,24 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             Modifier.padding(horizontal = TodayPad),
             actionLabel = "New goal",
             onAction = { showCreate = true },
+          )
+        }
+      } else if (sections != null) {
+        groupedRows(
+          sections = sections,
+          expanded = groupExpanded,
+          rowKey = { it.id },
+          headerPadding = Modifier.padding(horizontal = TodayPad),
+          dividerPadding = Modifier.padding(horizontal = TodayPad),
+        ) { goal ->
+          EntityRow(
+            title = goal.name,
+            meta = goalMeta(goal),
+            leadingIcon = Icons.Default.Flag,
+            leadingIconTint = MaterialTheme.colorScheme.entityGoals,
+            strikethrough = goal.status == "Achieved",
+            onClick = { viewModel.openGoalDetail(goal.id) },
+            modifier = Modifier.padding(horizontal = TodayPad),
           )
         }
       } else {

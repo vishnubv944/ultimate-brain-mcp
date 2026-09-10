@@ -390,6 +390,7 @@ data class MyDayUiState(
     val visible = visibleChipKeys(scope)
     selectedFilterKeys[scope.name]?.let { if (it in visible) return it }
     chipConfigs[scope.name]?.defaultKey?.let { if (it in visible) return it }
+    BuiltinFilters.defaultKey(scope).let { if (it in visible) return it }
     return visible.firstOrNull() ?: BuiltinFilters.keys(scope).first()
   }
 
@@ -434,7 +435,8 @@ data class MyDayUiState(
     val base =
       if (cf != null) goals.filter { FilterEngine.matches(it.filterRow(), cf) }
       else goals.filter { BuiltinFilters.goalMatches(key, it) }
-    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+    if (cf?.sort != null) return FilterEngine.sorted(base, cf.sort) { it.filterRow() }
+    return BuiltinFilters.goalSort(key)?.let { base.sortedWith(it) } ?: base
   }
 
   fun tagsMatching(key: String): List<TagModel> {
@@ -442,7 +444,8 @@ data class MyDayUiState(
     val base =
       if (cf != null) tags.filter { FilterEngine.matches(it.filterRow(), cf) }
       else tags.filter { BuiltinFilters.tagMatches(key, it) }
-    return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() } else base
+    if (cf?.sort != null) return FilterEngine.sorted(base, cf.sort) { it.filterRow() }
+    return BuiltinFilters.tagSort(key)?.let { base.sortedWith(it) } ?: base
   }
 
   fun milestonesMatching(key: String): List<MilestoneModel> {
