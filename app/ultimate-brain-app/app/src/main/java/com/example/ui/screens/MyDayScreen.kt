@@ -80,18 +80,13 @@ import com.example.ui.components.rememberVisibleCount
 import com.example.ui.theme.success
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.MyDayViewModel
-import com.example.viewmodel.PlanFilter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private val PLAN_FILTERS = listOf(
-  PlanFilter.TODAY to "Today",
-  PlanFilter.WEEK to "This week",
-  PlanFilter.OVERDUE to "Overdue",
-  PlanFilter.ACTIVE_PROJECTS to "Active projects",
-  PlanFilter.INBOX to "Inbox",
-  PlanFilter.RECURRING to "Recurring",
-)
+// "Add to today" browse chips — the same Notion view set as the Tasks tab
+// (minus Done), but with their own independent selection.
+private val BROWSE_KEYS =
+  com.example.viewmodel.BuiltinFilters.keys(com.example.model.FilterScope.TASKS).filter { it != "DONE" }
 
 /**
  * "Today" — one scrollable surface for the whole day: what you've committed to,
@@ -121,9 +116,10 @@ fun MyDayScreen(
   val shortlist = uiState.upNextTasks
   val doneToday = uiState.doneTodayTasks
   val openCount = uiState.openTodayTasks.size
-  val browse = uiState.planBrowseTasks
-  val browseVisible = rememberVisibleCount(uiState.selectedPlanFilter)
-  val groupByProject = uiState.selectedPlanFilter == PlanFilter.ACTIVE_PROJECTS
+  var browseKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("TODAY") }
+  val browse = uiState.tasksMatching(browseKey)
+  val browseVisible = rememberVisibleCount(browseKey)
+  val groupByProject = browseKey == "ACTIVE_PROJECTS" || browseKey == "ALL_PROJECTS"
   val onTodayIds = shortlist.map { it.id }.toSet()
 
   var doneOpen by remember { mutableStateOf(false) }
@@ -242,11 +238,12 @@ fun MyDayScreen(
           modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
           horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          PLAN_FILTERS.forEach { (filter, label) ->
-            val n = uiState.planFilterCount(filter)
+          BROWSE_KEYS.forEach { key ->
+            val label = com.example.viewmodel.BuiltinFilters.label(key)
+            val n = uiState.tasksMatching(key).size
             FilterChip(
-              selected = uiState.selectedPlanFilter == filter,
-              onClick = { viewModel.selectPlanFilter(filter) },
+              selected = browseKey == key,
+              onClick = { browseKey = key },
               label = { Text(if (n > 0) "$label  $n" else label) },
             )
           }
