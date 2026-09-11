@@ -31,7 +31,7 @@ object NotionConfig {
   val recipesDsId: String = buildConfigOrEmpty("UB_RECIPES_DS_ID")
   val mealPlannerDsId: String = buildConfigOrEmpty("UB_MEAL_PLANNER_DS_ID")
 
-  /** When false, the app stays on bundled [com.example.data.DummyData]. */
+  /** When false, the app has no data source and shows empty states. */
   val isConfigured: Boolean
     get() = integrationToken.isNotBlank() &&
       tasksDsId.isNotBlank() &&

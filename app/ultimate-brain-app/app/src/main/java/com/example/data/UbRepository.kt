@@ -42,7 +42,8 @@ data class WorkspaceData(
 
 /**
  * Single entry point for Notion Direct-API reads and writes. Falls back to
- * [DummyData] when [NotionConfig.isConfigured] is false.
+ * an empty workspace when [NotionConfig.isConfigured] is false — the app never
+ * shows placeholder/sample data.
  */
 class UbRepository(
   private val client: NotionClient? =
@@ -53,7 +54,7 @@ class UbRepository(
   val isRemote: Boolean get() = client != null
 
   suspend fun loadWorkspace(doneLookbackDays: Long = 60): WorkspaceData = withContext(Dispatchers.IO) {
-    val c = client ?: return@withContext dummyWorkspace()
+    val c = client ?: return@withContext emptyWorkspace()
 
     // Server-side filters keep the payload sane — the Tasks DB alone has 600+
     // rows of history. We pull open work plus anything closed in the last week.
@@ -627,15 +628,15 @@ class UbRepository(
     return page.id
   }
 
-  // --- dummy fallback ------------------------------------------------------
+  // --- not-configured fallback -------------------------------------------
 
-  private fun dummyWorkspace() = WorkspaceData(
-    tasks = DummyData.initialTasks,
-    projects = DummyData.projectsList,
-    notes = DummyData.notesList,
-    goals = DummyData.goalsList,
-    tags = DummyData.tagsList,
-    milestones = DummyData.milestonesList,
+  private fun emptyWorkspace() = WorkspaceData(
+    tasks = emptyList(),
+    projects = emptyList(),
+    notes = emptyList(),
+    goals = emptyList(),
+    tags = emptyList(),
+    milestones = emptyList(),
   )
 
   private data class SixLists(

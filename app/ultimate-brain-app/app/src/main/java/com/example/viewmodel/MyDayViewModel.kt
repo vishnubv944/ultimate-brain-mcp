@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.DateUtils
-import com.example.data.DummyData
 import com.example.data.FilterStore
 import com.example.data.UbRepository
 import com.example.domain.FilterEngine
@@ -196,7 +195,7 @@ sealed class SnackbarMessage {
 data class MyDayUiState(
   val currentScreen: AppScreen = AppScreen.TODAY,
   val selectedTaskId: String? = null,
-  val tasks: List<Task> = DummyData.initialTasks,
+  val tasks: List<Task> = emptyList(),
   val selectedPhase: DailyRitualPhase = DailyRitualPhase.EXECUTE,
   val selectedPlanFilter: PlanFilter = PlanFilter.TODAY,
   val selectedExecuteFilter: ExecuteFilter = ExecuteFilter.MY_DAY,
@@ -237,28 +236,28 @@ data class MyDayUiState(
   val selectedRecipeId: String? = null,
 
   // Projects State
-  val projects: List<ProjectModel> = DummyData.projectsList,
+  val projects: List<ProjectModel> = emptyList(),
   val selectedProjectId: String? = null,
   val selectedProjectFilter: ProjectFilter = ProjectFilter.ALL,
 
   // Notes State
-  val notes: List<NoteModel> = DummyData.notesList,
+  val notes: List<NoteModel> = emptyList(),
   val selectedNoteId: String? = null,
   val selectedNoteFilter: NoteFilter = NoteFilter.ALL,
 
   // Goals State
-  val goals: List<GoalModel> = DummyData.goalsList,
+  val goals: List<GoalModel> = emptyList(),
   val selectedGoalId: String? = null,
   val selectedGoalFilter: GoalFilter = GoalFilter.ACTIVE,
 
   // Milestones State
-  val milestones: List<MilestoneModel> = DummyData.milestonesList,
+  val milestones: List<MilestoneModel> = emptyList(),
   val selectedMilestoneFilter: MilestoneFilter = MilestoneFilter.ALL,
   val selectedMilestoneGoalId: String = "All",
   val selectedMilestoneId: String? = null,
 
   // Tags State
-  val tags: List<TagModel> = DummyData.tagsList,
+  val tags: List<TagModel> = emptyList(),
   val selectedTagId: String? = null,
   val selectedTagFilter: TagFilter = TagFilter.ALL,
 
@@ -269,7 +268,7 @@ data class MyDayUiState(
   val selectedFilterKeys: Map<String, String> = emptyMap(),
 
   // Work Sessions State
-  val workSessions: List<WorkSessionModel> = DummyData.workSessionsList,
+  val workSessions: List<WorkSessionModel> = emptyList(),
   val activeSessionSeconds: Long = 0L,
   val isWorkSessionActive: Boolean = false,
   // Per-task work-session history (the "Time" detail screen).
@@ -290,7 +289,7 @@ data class MyDayUiState(
   // MyApplicationTheme(dynamicColor = ...).
   val dynamicColorEnabled: Boolean = false,
 
-  // Notion sync (Direct API). `isRemote` false => running on bundled DummyData.
+  // Notion sync (Direct API). `isRemote` false => not configured; empty workspace.
   val isRemote: Boolean = false,
   val isSyncing: Boolean = false,
   val syncError: String? = null,
