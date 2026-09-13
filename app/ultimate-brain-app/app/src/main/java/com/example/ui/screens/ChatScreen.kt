@@ -19,9 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -169,19 +173,24 @@ fun ChatScreen(
     },
   ) {
     // A dedicated scaffold, not the shared tab ScreenScaffold: the bottom nav
-    // must disappear (not just get covered) once the IME opens. IME handling
-    // is done exactly once, and at the outermost level: .imePadding() on the
-    // Scaffold itself shrinks the whole Scaffold's bounds (topBar + content +
-    // bottomBar together) to make room for the keyboard, so everything below
-    // relayouts against the *actual* remaining height. Doing it one level
-    // deeper (padding the content lambda instead) measured against a stale
-    // height here — on-device that left a dead gap the size of the keyboard
-    // between the composer and the keyboard instead of closing it.
-    // contentWindowInsets is zeroed so Scaffold doesn't also reserve ime
-    // space a second time inside the content padding.
+    // must disappear (not just get covered) once the IME opens.
+    //
+    // While the bottom nav is visible it's the thing that paints over the
+    // navigationBars inset (M3's NavigationBar does that internally); once
+    // it's hidden for typing, nothing was painting that sliver any more, so
+    // the raw (black) window background showed through right above the
+    // keyboard. Fix: pad by the union of navigationBars + ime (not ime
+    // alone) so the reserved space always covers whichever the system is
+    // actually showing there, and paint the theme's background behind the
+    // whole screen so any inset gap resolves to the app's color, never
+    // black. contentWindowInsets is zeroed so Scaffold doesn't also reserve
+    // this space a second time inside the content padding.
     val imeVisible = WindowInsets.isImeVisible
+    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
     Scaffold(
-      modifier = modifier.fillMaxSize().imePadding(),
+      modifier = modifier.fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .windowInsetsPadding(bottomInsets),
       contentWindowInsets = WindowInsets(0, 0, 0, 0),
       topBar = {
         Column {
