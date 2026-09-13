@@ -70,18 +70,19 @@ fun TagDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
               "Parent tag", tag.parentName,
               uiState.tags.filter { it.id != tag.id }.map { it.name },
               { name -> viewModel.setTagParent(tag.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+              icon = Icons.Default.Folder,
             )
           },
           propertyStrip = {
-            com.example.ui.components.PropertyGrid {
-              com.example.ui.components.SelectCell(
-                Icons.Outlined.Flag, "Type", tag.type,
+            androidx.compose.foundation.layout.Column {
+              OptionRow(
+                "Type", tag.type,
                 uiState.optionsFor("tag.Type", listOf("Area", "Resource", "Entity")),
                 { it?.let { t -> viewModel.setTagType(tag.id, t) } },
-                allowClear = false,
+                allowClear = false, icon = Icons.Outlined.Flag,
               )
-              com.example.ui.components.ToggleCell(
-                Icons.Default.Star, "Favorite", tag.isFavorite, { viewModel.toggleTagFavorite(tag.id) },
+              com.example.ui.components.ToggleFieldRow(
+                "Favorite", tag.isFavorite, { viewModel.toggleTagFavorite(tag.id) }, icon = Icons.Default.Star,
               )
             }
           },

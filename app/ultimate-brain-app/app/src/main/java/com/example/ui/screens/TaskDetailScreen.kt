@@ -24,12 +24,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.Flag
@@ -122,29 +129,25 @@ fun TaskDetailScreen(
         },
         viewDetails = { TaskViewDetails(task, uiState, viewModel) },
         propertyStrip = {
-          com.example.ui.components.PropertyGrid {
-            com.example.ui.components.SelectCell(
-              Icons.Outlined.CheckCircle, "Status", statusLabel(task.status),
-              listOf("To Do", "Doing", "Done"),
+          Column {
+            OptionRow(
+              "Status", statusLabel(task.status), listOf("To Do", "Doing", "Done"),
               { name -> name?.let { viewModel.updateTaskStatus(task.id, statusFromLabel(it)) } },
-              allowClear = false,
+              allowClear = false, icon = Icons.Outlined.CheckCircle,
             )
-            com.example.ui.components.SelectCell(
-              Icons.Default.Folder, "Project", task.projectName,
-              uiState.projects.filter { !it.isArchived }.map { it.name },
+            OptionRow(
+              "Project", task.projectName, uiState.projects.filter { !it.isArchived }.map { it.name },
               { name -> viewModel.setTaskProjectRelation(task.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+              icon = Icons.Default.Folder,
             )
-            com.example.ui.components.DateCell(
-              Icons.Default.Event, "Due", task.due, { viewModel.setTaskDueDate(task.id, it) },
-              overdue = task.isOverdue,
-            )
-            com.example.ui.components.SelectCell(
-              Icons.Outlined.Flag, "Priority", task.priority?.let { priorityLabel(it) },
-              listOf("High", "Medium", "Low"),
+            DateFieldRow("Due", task.due, { viewModel.setTaskDueDate(task.id, it) }, icon = Icons.Default.Event, overdue = task.isOverdue)
+            OptionRow(
+              "Priority", task.priority?.let { priorityLabel(it) }, listOf("High", "Medium", "Low"),
               { name -> viewModel.updateTaskPriority(task.id, name?.let { priorityFromLabel(it) }) },
+              icon = Icons.Outlined.Flag,
             )
-            com.example.ui.components.ToggleCell(
-              Icons.Default.WbSunny, "My Day", task.isMyDay, { viewModel.toggleMyDay(task.id) },
+            com.example.ui.components.ToggleFieldRow(
+              "My Day", task.isMyDay, { viewModel.toggleMyDay(task.id) }, icon = Icons.Default.WbSunny,
             )
           }
         },
@@ -183,13 +186,14 @@ private fun TaskViewDetails(
   viewModel: MyDayViewModel,
 ) {
         Column {
-          OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) })
-          OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) })
-          OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) })
+          OptionRow("Energy", task.energy, uiState.optionsFor("task.Energy", listOf("High", "Low")), { viewModel.setTaskEnergy(task.id, it) }, icon = Icons.Outlined.Bolt)
+          OptionRow("Location", task.location, uiState.optionsFor("task.Location", listOf("Home", "Office", "Errand")), { viewModel.setTaskLocation(task.id, it) }, icon = Icons.Default.Place)
+          OptionRow("Smart list", task.smartList, uiState.optionsFor("task.Smart List", listOf("Do Next", "Delegated", "Someday")), { viewModel.setTaskSmartList(task.id, it) }, icon = Icons.Outlined.List)
           OptionRow(
             "Repeats", task.recurUnit,
             uiState.optionsFor("task.Recur Unit", listOf("Day(s)", "Week(s)", "Month(s)", "Year(s)")),
             { viewModel.setTaskRecurrence(task.id, it, task.recurInterval.coerceAtLeast(1)) },
+            icon = Icons.Default.Repeat,
           )
           if (task.recurUnit != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -215,9 +219,9 @@ private fun TaskViewDetails(
             }
           }
 
-          DateFieldRow("Snooze until", task.snoozeIso, { viewModel.setTaskSnooze(task.id, it) })
-          DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) })
-          OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) })
+          DateFieldRow("Snooze until", task.snoozeIso, { viewModel.setTaskSnooze(task.id, it) }, icon = Icons.Default.Snooze)
+          DateFieldRow("Wait date", task.waitIso, { viewModel.setTaskWaitDate(task.id, it) }, icon = Icons.Default.HourglassEmpty)
+          OptionRow("Focus type", task.processImmersive, uiState.optionsFor("task.P/I", listOf("Process", "Immersive")), { viewModel.setTaskProcessImmersive(task.id, it) }, icon = Icons.Default.CenterFocusStrong)
 
           run {
             val labelOpts = uiState.optionsFor("task.Labels", task.labels)

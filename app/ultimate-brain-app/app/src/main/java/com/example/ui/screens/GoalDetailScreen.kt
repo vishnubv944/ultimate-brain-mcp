@@ -88,26 +88,27 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             Icon(Icons.Default.EmojiEvents, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
           },
           viewDetails = {
-            DateFieldRow("Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) })
+            DateFieldRow("Goal set", goal.goalSetIso, { viewModel.setGoalSetDate(goal.id, it) }, icon = Icons.Default.Event)
           },
           propertyStrip = {
-            com.example.ui.components.PropertyGrid {
-              com.example.ui.components.SelectCell(
-                Icons.Outlined.CheckCircle, "Status", goal.status,
+            Column {
+              com.example.ui.components.OptionRow(
+                "Status", goal.status,
                 uiState.optionsFor("goal.Status", listOf("Dream", "Active", "Achieved")),
                 { it?.let { s -> viewModel.setGoalStatusValue(goal.id, s) } },
-                allowClear = false,
+                allowClear = false, icon = Icons.Outlined.CheckCircle,
               )
-              com.example.ui.components.SelectCell(
-                Icons.Default.Tag, "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
+              com.example.ui.components.OptionRow(
+                "Area", uiState.tags.firstOrNull { it.id == goal.tagId }?.name,
                 uiState.tags.map { it.name },
                 { name -> viewModel.setGoalTagRelation(goal.id, uiState.tags.firstOrNull { it.name == name }?.id) },
+                icon = Icons.Default.Tag,
               )
-              com.example.ui.components.PropertyCell(
-                Icons.Default.TrendingUp, "Progress", goal.aggregatedProgressText.ifBlank { "0%" }, {},
+              com.example.ui.components.FieldRow(
+                "Progress", goal.aggregatedProgressText.ifBlank { "0%" }, icon = Icons.Default.TrendingUp,
               )
-              com.example.ui.components.DateCell(
-                Icons.Default.Event, "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) },
+              com.example.ui.components.DateFieldRow(
+                "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) }, icon = Icons.Default.Event,
               )
             }
           },

@@ -23,18 +23,24 @@ object BuiltinFilters {
 
   fun keys(scope: FilterScope): List<String> = when (scope) {
     FilterScope.TASKS -> listOf(
-      "TODAY", "ACTIVE_PROJECTS", "INBOX", "WEEK", "MONTH", "OVERDUE",
+      "INBOX", "TODAY", "ACTIVE_PROJECTS", "WEEK", "MONTH", "OVERDUE",
       "SCHEDULED", "RECURRING", "NO_DUE", "ALL_PROJECTS", "DO_NEXT", "ALL", "DONE",
     )
     FilterScope.PROJECTS -> listOf("ALL", "PLANNED", "ON_HOLD", "DOING", "ONGOING", "DONE", "ARCHIVED")
-    FilterScope.NOTES -> listOf("NOTES", "INBOX", "FAV", "CLIPS", "VOICE", "JOURNAL", "MEETINGS", "ALL")
+    FilterScope.NOTES -> listOf("INBOX", "NOTES", "FAV", "CLIPS", "VOICE", "JOURNAL", "MEETINGS", "ALL")
     FilterScope.GOALS -> listOf("BY_ACTIVITY", "BY_DEADLINE", "BY_TAG", "ACHIEVED", "DROPPED")
     FilterScope.TAGS -> listOf("FAV", "A_Z", "TYPES")
     FilterScope.MILESTONES -> listOf("ALL", "IN_PROGRESS", "COMPLETED", "PENDING")
   }
 
-  /** The chip a screen cold-opens on when the user hasn't chosen one. */
+  /**
+   * The chip a screen cold-opens on when the user hasn't chosen one. Kept
+   * independent of chip *display* order — Inbox leads the row everywhere
+   * now, but Tasks/Notes should still land on Today/Notes, not Inbox.
+   */
   fun defaultKey(scope: FilterScope): String = when (scope) {
+    FilterScope.TASKS -> "TODAY"
+    FilterScope.NOTES -> "NOTES"
     FilterScope.TAGS -> "A_Z"          // "Fav" is usually empty
     else -> keys(scope).first()
   }

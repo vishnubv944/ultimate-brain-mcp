@@ -91,23 +91,23 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
           },
           viewDetails = { ProjectViewDetails(project, uiState, viewModel) },
           propertyStrip = {
-            com.example.ui.components.PropertyGrid {
-              com.example.ui.components.SelectCell(
-                Icons.Outlined.CheckCircle, "Status", project.status,
+            androidx.compose.foundation.layout.Column {
+              com.example.ui.components.OptionRow(
+                "Status", project.status,
                 uiState.optionsFor("project.Status", listOf("Planned", "On Hold", "Doing", "Ongoing", "Done")),
                 { it?.let { s -> viewModel.setProjectStatus(project.id, s) } },
-                allowClear = false,
+                allowClear = false, icon = Icons.Outlined.CheckCircle,
               )
-              com.example.ui.components.DateCell(
-                Icons.Default.Event, "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) },
+              com.example.ui.components.DateFieldRow(
+                "Deadline", project.deadlineIso, { viewModel.setProjectDeadline(project.id, it) }, icon = Icons.Default.Event,
               )
-              com.example.ui.components.PropertyCell(
-                Icons.Default.TrendingUp, "Progress", project.progressText.ifBlank { "0%" }, {},
+              com.example.ui.components.FieldRow(
+                "Progress", project.progressText.ifBlank { "0%" }, icon = Icons.Default.TrendingUp,
               )
-              com.example.ui.components.SelectCell(
-                Icons.Default.TrackChanges, "Goal", project.goalName,
-                uiState.goals.map { it.name },
+              com.example.ui.components.OptionRow(
+                "Goal", project.goalName, uiState.goals.map { it.name },
                 { name -> viewModel.setProjectGoalRelation(project.id, uiState.goals.firstOrNull { it.name == name }?.id) },
+                icon = Icons.Default.TrackChanges,
               )
             }
           },

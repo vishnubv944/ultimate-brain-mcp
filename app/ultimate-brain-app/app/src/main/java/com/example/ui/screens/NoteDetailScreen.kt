@@ -104,23 +104,22 @@ fun NoteDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
         },
         viewDetails = { NoteViewDetails(note, uiState, viewModel) },
         propertyStrip = {
-          com.example.ui.components.PropertyGrid {
-            com.example.ui.components.SelectCell(
-              Icons.Default.Description, "Type", note.type,
+          Column {
+            com.example.ui.components.OptionRow(
+              "Type", note.type,
               uiState.optionsFor("note.Type", listOf("Journal", "Meeting", "Web Clip", "Voice Note", "Lecture", "Reference", "Book", "Idea", "Plan", "Recipe", "Daily")),
               { it?.let { t -> viewModel.setNoteType(note.id, t) } },
-              allowClear = false,
+              allowClear = false, icon = Icons.Default.Description,
             )
-            com.example.ui.components.DateCell(
-              Icons.Default.Event, "Date", note.dateIso, { viewModel.setNoteDate(note.id, it) },
-            )
-            com.example.ui.components.SelectCell(
-              Icons.Default.Folder, "Project", note.projectName,
+            com.example.ui.components.DateFieldRow("Date", note.dateIso, { viewModel.setNoteDate(note.id, it) }, icon = Icons.Default.Event)
+            com.example.ui.components.OptionRow(
+              "Project", note.projectName,
               uiState.projects.filter { !it.isArchived }.map { it.name },
               { name -> viewModel.setNoteProjectRelation(note.id, uiState.projects.firstOrNull { it.name == name }?.id) },
+              icon = Icons.Default.Folder,
             )
-            com.example.ui.components.ToggleCell(
-              Icons.Default.Star, "Favorite", note.isFavorite, { viewModel.toggleNoteFavorite(note.id) },
+            com.example.ui.components.ToggleFieldRow(
+              "Favorite", note.isFavorite, { viewModel.toggleNoteFavorite(note.id) }, icon = Icons.Default.Star,
             )
           }
         },
