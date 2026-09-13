@@ -375,14 +375,19 @@ private fun TurnBubble(turn: ChatTurn) {
   val isUser = turn.role == "user"
   Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start) {
     Column(
-      Modifier
-        .fillMaxWidth(0.85f)
-        .then(
-          if (isUser) Modifier
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-          else Modifier,
-        ),
+      // A user turn is a bubble: it should hug its own text (like every
+      // native chat bubble), capped so a long message doesn't run edge to
+      // edge. The assistant turn has no bubble — it's plain text like
+      // ChatGPT/Claude's own chat — so it keeps the full available width
+      // for readable paragraph wrapping instead of being squeezed narrow.
+      if (isUser) {
+        Modifier
+          .widthIn(max = 300.dp)
+          .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
+          .padding(horizontal = 14.dp, vertical = 10.dp)
+      } else {
+        Modifier.fillMaxWidth()
+      },
       horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
       turn.imagePreview?.let { uri ->
