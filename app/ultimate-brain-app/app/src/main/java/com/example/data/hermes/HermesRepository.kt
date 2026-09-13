@@ -32,7 +32,17 @@ class HermesRepository {
   suspend fun messages(id: String) = client()?.messages(id).orEmpty()
   suspend fun stopRun(runId: String) { client()?.stopRun(runId) }
   suspend fun resolveApproval(runId: String, approved: Boolean) { client()?.resolveApproval(runId, approved) }
+  suspend fun forkSession(id: String, title: String? = null) = client()?.forkSession(id, title)
 
-  fun sendStream(sessionId: String, input: String): Flow<ChatEvent> =
-    client()?.sendStream(sessionId, input) ?: emptyFlow()
+  suspend fun listSkills(): List<HermesSkill> = client()?.listSkills().orEmpty()
+
+  suspend fun listJobs(): List<HermesJob> = client()?.listJobs().orEmpty()
+  suspend fun createJob(name: String, schedule: String, prompt: String) = client()?.createJob(name, schedule, prompt)
+  suspend fun deleteJob(id: String) { client()?.deleteJob(id) }
+  suspend fun pauseJob(id: String) = client()?.pauseJob(id)
+  suspend fun resumeJob(id: String) = client()?.resumeJob(id)
+  suspend fun runJobNow(id: String) = client()?.runJobNow(id)
+
+  fun sendStream(sessionId: String, input: String, images: List<ImageAttachment> = emptyList()): Flow<ChatEvent> =
+    client()?.sendStream(sessionId, input, images) ?: emptyFlow()
 }

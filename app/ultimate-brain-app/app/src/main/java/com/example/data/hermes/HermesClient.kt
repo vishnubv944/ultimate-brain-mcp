@@ -11,8 +11,12 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+
+/** One image attached to an outgoing message — already downscaled + base64-encoded. */
+data class ImageAttachment(val base64: String, val mimeType: String = "image/jpeg")
 
 /**
  * Thin HTTP layer over the Hermes API server (OpenAI-compatible + REST session
@@ -99,14 +103,91 @@ class HermesClient(
     }
   }
 
+  suspend fun forkSession(id: String, title: String? = null): HermesSession = withContext(Dispatchers.IO) {
+    val payload = JSONObject().apply { if (title != null) put("title", title) }.toString()
+    http.newCall(req("/api/sessions/$id/fork").post(payload.toRequestBody(json)).build()).execute().use { resp ->
+      val body = resp.body?.string().orEmpty()
+      if (!resp.isSuccessful) throw HermesException(errorMessage(body, resp.code))
+      moshi.adapter(HermesSessionEnvelope::class.java).fromJson(body)?.resolve()
+        ?: throw HermesException("Malformed fork response")
+    }
+  }
+
+  // ---- Discovery: skills, for the "/" palette ---------------------------
+
+  suspend fun listSkills(): List<HermesSkill> = withContext(Dispatchers.IO) {
+    http.newCall(req("/v1/skills").build()).execute().use { resp ->
+      val body = resp.body?.string().orEmpty()
+      if (!resp.isSuccessful) throw HermesException(errorMessage(body, resp.code))
+      moshi.adapter(HermesSkillList::class.java).fromJson(body)?.data.orEmpty()
+    }
+  }
+
+  // ---- Jobs (cron / "Routines") ------------------------------------------
+
+  suspend fun listJobs(): List<HermesJob> = withContext(Dispatchers.IO) {
+    http.newCall(req("/api/jobs").build()).execute().use { resp ->
+      val body = resp.body?.string().orEmpty()
+      if (!resp.isSuccessful) throw HermesException(jobErrorMessage(body, resp.code))
+      moshi.adapter(HermesJobList::class.java).fromJson(body)?.jobs.orEmpty()
+    }
+  }
+
+  suspend fun createJob(name: String, schedule: String, prompt: String): HermesJob =
+    withContext(Dispatchers.IO) {
+      val payload = JSONObject().put("name", name).put("schedule", schedule).put("prompt", prompt).toString()
+      http.newCall(req("/api/jobs").post(payload.toRequestBody(json)).build()).execute().use { resp ->
+        val body = resp.body?.string().orEmpty()
+        if (!resp.isSuccessful) throw HermesException(jobErrorMessage(body, resp.code))
+        moshi.adapter(HermesJobEnvelope::class.java).fromJson(body)?.job
+          ?: throw HermesException("Malformed create-job response")
+      }
+    }
+
+  suspend fun deleteJob(id: String) = withContext(Dispatchers.IO) {
+    http.newCall(req("/api/jobs/$id").delete().build()).execute().use { resp ->
+      if (!resp.isSuccessful && resp.code != 404) throw HermesException(jobErrorMessage(resp.body?.string().orEmpty(), resp.code))
+    }
+  }
+
+  suspend fun pauseJob(id: String): HermesJob? = jobAction(id, "pause")
+  suspend fun resumeJob(id: String): HermesJob? = jobAction(id, "resume")
+  suspend fun runJobNow(id: String): HermesJob? = jobAction(id, "run")
+
+  private suspend fun jobAction(id: String, action: String): HermesJob? = withContext(Dispatchers.IO) {
+    http.newCall(req("/api/jobs/$id/$action").post("".toRequestBody(json)).build()).execute().use { resp ->
+      val body = resp.body?.string().orEmpty()
+      if (!resp.isSuccessful) throw HermesException(jobErrorMessage(body, resp.code))
+      moshi.adapter(HermesJobEnvelope::class.java).fromJson(body)?.job
+    }
+  }
+
   // ---- Streaming chat turn --------------------------------------------
 
   /**
-   * Send [input] to [sessionId] and stream the turn. Emits [ChatEvent]s until
-   * `done`/error. Cancelling the collector aborts the HTTP call.
+   * Send [input] (with optional [images]) to [sessionId] and stream the turn.
+   * Emits [ChatEvent]s until `done`/error. Cancelling the collector aborts
+   * the HTTP call. When images are attached the message body becomes an
+   * OpenAI-style content-part array (`text` + `image_url` data URLs) — the
+   * same shape `/v1/chat/completions` accepts.
    */
-  fun sendStream(sessionId: String, input: String): Flow<ChatEvent> = callbackFlow {
-    val payload = JSONObject().put("input", input).toString()
+  fun sendStream(sessionId: String, input: String, images: List<ImageAttachment> = emptyList()): Flow<ChatEvent> = callbackFlow {
+    val messageValue: Any = if (images.isEmpty()) {
+      input
+    } else {
+      JSONArray().apply {
+        if (input.isNotBlank()) put(JSONObject().put("type", "text").put("text", input))
+        images.forEach { img ->
+          put(
+            JSONObject().put("type", "image_url").put(
+              "image_url",
+              JSONObject().put("url", "data:${img.mimeType};base64,${img.base64}"),
+            ),
+          )
+        }
+      }
+    }
+    val payload = JSONObject().put("input", messageValue).toString()
     val call = http.newCall(
       req("/api/sessions/$sessionId/chat/stream")
         .header("Accept", "text/event-stream")
@@ -152,8 +233,9 @@ class HermesClient(
       "run.started" -> ChatEvent.RunStarted(o.optString("run_id"))
       "assistant.delta" -> ChatEvent.Delta(o.optString("delta"))
       "tool.progress" -> ChatEvent.ToolProgress(o.optString("tool_name", "tool"), o.optString("delta"))
-      "tool.started" -> ChatEvent.ToolStarted(o.optString("tool_name", "tool"))
+      "tool.started" -> ChatEvent.ToolStarted(o.optString("tool_name", "tool"), o.optString("preview").takeIf { it.isNotBlank() })
       "tool.completed" -> ChatEvent.ToolCompleted(o.optString("tool_name", "tool"))
+      "tool.failed" -> ChatEvent.ToolFailed(o.optString("tool_name", "tool"))
       "approval.required", "run.approval_required" ->
         ChatEvent.ApprovalRequired(o.optString("run_id"), o.optString("summary", o.optString("tool_name", "a tool")))
       "assistant.completed" -> ChatEvent.Completed(o.optString("content"))
@@ -173,6 +255,11 @@ class HermesClient(
   private fun errorMessage(body: String, code: Int): String =
     runCatching { JSONObject(body).getJSONObject("error").getString("message") }
       .getOrNull() ?: "HTTP $code"
+
+  /** The Jobs API returns `{"error": "text"}` (flat string), not the nested OpenAI shape. */
+  private fun jobErrorMessage(body: String, code: Int): String =
+    runCatching { JSONObject(body).getString("error") }.getOrNull()
+      ?: errorMessage(body, code)
 }
 
 class HermesException(message: String) : Exception(message)

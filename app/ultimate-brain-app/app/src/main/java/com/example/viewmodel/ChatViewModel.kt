@@ -1,11 +1,14 @@
 package com.example.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.hermes.ChatEvent
 import com.example.data.hermes.HermesConfig
 import com.example.data.hermes.HermesRepository
 import com.example.data.hermes.HermesSession
+import com.example.data.hermes.HermesSkill
+import com.example.data.hermes.ImageAttachment
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,13 +16,50 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class ToolStatus { RUNNING, DONE, FAILED }
+
+/** One tool-call card inside an assistant turn. */
+data class ToolCall(
+  val tool: String,
+  val preview: String? = null,
+  val status: ToolStatus = ToolStatus.RUNNING,
+)
+
 /** A single message in the chat thread UI. */
 data class ChatTurn(
   val role: String,        // "user" | "assistant"
   val text: String,
-  val tools: List<String> = emptyList(),
+  val tools: List<ToolCall> = emptyList(),
   val streaming: Boolean = false,
+  val imagePreview: Uri? = null, // set on the user turn when an image was attached
 )
+
+/** A built-in "/" command — the Session + Turn-control groups from the palette plan. */
+enum class PaletteCommand(val label: String, val description: String) {
+  NEW("/new", "start a fresh chat"),
+  RESUME("/resume", "reopen a past session"),
+  TITLE("/title", "rename this chat"),
+  FORK("/fork", "branch from here"),
+  STOP("/stop", "cancel the current run"),
+  RETRY("/retry", "resend the last message"),
+}
+
+sealed interface PaletteEntry {
+  data class Cmd(val cmd: PaletteCommand) : PaletteEntry
+  data class Skill(val skill: HermesSkill) : PaletteEntry
+}
+
+/** Prefix-matches the typed token against built-ins first, then discovered skills. */
+fun paletteEntries(query: String, skills: List<HermesSkill>): List<PaletteEntry> {
+  val q = query.removePrefix("/").lowercase()
+  val cmds = PaletteCommand.values()
+    .filter { it.label.removePrefix("/").lowercase().startsWith(q) }
+    .map { PaletteEntry.Cmd(it) }
+  val skillEntries = skills
+    .filter { it.name.lowercase().startsWith(q) }
+    .map { PaletteEntry.Skill(it) }
+  return cmds + skillEntries
+}
 
 data class ChatUiState(
   val configured: Boolean = HermesConfig.isConfigured,
@@ -33,7 +73,15 @@ data class ChatUiState(
   val input: String = "",
   val error: String? = null,
   val pendingApproval: Pair<String, String>? = null, // runId, summary
-)
+  val skills: List<HermesSkill> = emptyList(),
+  val attachedImage: Uri? = null,
+  // One-shot UI intents the ViewModel can't perform itself (drawer/dialog live in the Composable).
+  val requestOpenHistory: Int = 0,
+  val requestRename: Int = 0,
+) {
+  val lastUserMessage: String?
+    get() = turns.lastOrNull { it.role == "user" }?.text
+}
 
 class ChatViewModel : ViewModel() {
   private val repo = HermesRepository()
@@ -42,14 +90,29 @@ class ChatViewModel : ViewModel() {
 
   private var streamJob: Job? = null
   private var currentRunId: String? = null
+  private var pendingImage: ImageAttachment? = null
+  private var skillsLoaded = false
 
   fun onResume() {
     _state.update { it.copy(configured = HermesConfig.isConfigured) }
-    if (HermesConfig.isConfigured) refreshSessions()
+    if (HermesConfig.isConfigured) {
+      refreshSessions()
+      loadSkills()
+    }
   }
 
   fun setInput(v: String) = _state.update { it.copy(input = v) }
   fun clearError() = _state.update { it.copy(error = null) }
+
+  private fun loadSkills() {
+    if (skillsLoaded) return
+    skillsLoaded = true
+    viewModelScope.launch {
+      runCatching { repo.listSkills() }
+        .onSuccess { list -> _state.update { it.copy(skills = list) } }
+        .onFailure { skillsLoaded = false } // allow a retry on the next resume
+    }
+  }
 
   fun refreshSessions() {
     if (!repo.isConfigured) return
@@ -88,23 +151,76 @@ class ChatViewModel : ViewModel() {
 
   fun newChat() {
     streamJob?.cancel()
-    _state.update { it.copy(activeSessionId = null, activeTitle = null, turns = emptyList(), streaming = false) }
+    setAttachedImage(null)
+    _state.update { it.copy(activeSessionId = null, activeTitle = null, turns = emptyList(), streaming = false, input = "") }
+  }
+
+  /** "/fork" — branch the active session; the copy keeps the transcript, this one closes. */
+  fun fork() {
+    val sid = _state.value.activeSessionId ?: run {
+      _state.update { it.copy(error = "Nothing to fork yet — send a message first.") }
+      return
+    }
+    viewModelScope.launch {
+      runCatching { repo.forkSession(sid) }
+        .onSuccess { forked ->
+          if (forked != null) {
+            _state.update { it.copy(activeSessionId = forked.id, activeTitle = forked.title) }
+            refreshSessions()
+          }
+        }
+        .onFailure { e -> _state.update { it.copy(error = e.message ?: "Fork failed") } }
+    }
+  }
+
+  fun setAttachedImage(uri: Uri?, attachment: ImageAttachment? = null) {
+    pendingImage = attachment
+    _state.update { it.copy(attachedImage = uri) }
+  }
+
+  /** Handles a palette selection. Callback-only commands (resume/title) bump a request counter the Composable observes. */
+  fun onPaletteSelect(entry: PaletteEntry) {
+    _state.update { it.copy(input = "") }
+    when (entry) {
+      is PaletteEntry.Cmd -> when (entry.cmd) {
+        PaletteCommand.NEW -> newChat()
+        PaletteCommand.STOP -> stop()
+        PaletteCommand.RETRY -> retry()
+        PaletteCommand.FORK -> fork()
+        PaletteCommand.RESUME -> _state.update { it.copy(requestOpenHistory = it.requestOpenHistory + 1) }
+        PaletteCommand.TITLE -> _state.update { it.copy(requestRename = it.requestRename + 1) }
+      }
+      is PaletteEntry.Skill -> _state.update {
+        it.copy(input = "Use your ${entry.skill.name} skill to ")
+      }
+    }
+  }
+
+  fun retry() {
+    val last = _state.value.lastUserMessage ?: return
+    if (_state.value.streaming) return
+    setInput(last)
+    send()
   }
 
   fun send() {
     val text = _state.value.input.trim()
-    if (text.isEmpty() || _state.value.streaming) return
+    val image = pendingImage
+    val imagePreview = _state.value.attachedImage
+    if ((text.isEmpty() && image == null) || _state.value.streaming) return
+    pendingImage = null
     _state.update {
       it.copy(
         input = "",
-        turns = it.turns + ChatTurn("user", text) + ChatTurn("assistant", "", streaming = true),
+        attachedImage = null,
+        turns = it.turns + ChatTurn("user", text, imagePreview = imagePreview) + ChatTurn("assistant", "", streaming = true),
         streaming = true,
         error = null,
       )
     }
     viewModelScope.launch {
       val sid = _state.value.activeSessionId ?: run {
-        val created = runCatching { repo.createSession(defaultTitle(text)) }.getOrNull()
+        val created = runCatching { repo.createSession(defaultTitle(text.ifBlank { "Image" })) }.getOrNull()
         if (created == null) {
           failStream("Couldn't start a chat. Check the connection in Settings.")
           return@launch
@@ -113,20 +229,21 @@ class ChatViewModel : ViewModel() {
         refreshSessions()
         created.id
       }
-      streamTurn(sid, text)
+      streamTurn(sid, text, if (image != null) listOf(image) else emptyList())
     }
   }
 
-  private fun streamTurn(sid: String, text: String) {
+  private fun streamTurn(sid: String, text: String, images: List<ImageAttachment>) {
     streamJob?.cancel()
     streamJob = viewModelScope.launch {
-      repo.sendStream(sid, text).collect { ev ->
+      repo.sendStream(sid, text, images).collect { ev ->
         when (ev) {
           is ChatEvent.RunStarted -> currentRunId = ev.runId
           is ChatEvent.Delta -> appendToLast(ev.text)
-          is ChatEvent.ToolStarted -> addToolToLast("Running ${ev.tool}…")
-          is ChatEvent.ToolProgress -> if (ev.tool != "_thinking") addToolToLast("${ev.tool}…")
-          is ChatEvent.ToolCompleted -> addToolToLast("${ev.tool} ✓")
+          is ChatEvent.ToolStarted -> addTool(ToolCall(ev.tool, ev.preview, ToolStatus.RUNNING))
+          is ChatEvent.ToolProgress -> if (ev.tool != "_thinking") addTool(ToolCall(ev.tool, ev.text.takeIf { it.isNotBlank() }, ToolStatus.RUNNING))
+          is ChatEvent.ToolCompleted -> markTool(ev.tool, ToolStatus.DONE)
+          is ChatEvent.ToolFailed -> markTool(ev.tool, ToolStatus.FAILED)
           is ChatEvent.ApprovalRequired ->
             _state.update { it.copy(pendingApproval = ev.runId to ev.summary) }
           is ChatEvent.Completed -> replaceLast(ev.content)
@@ -181,10 +298,24 @@ class ChatViewModel : ViewModel() {
     s.copy(turns = t)
   }
 
-  private fun addToolToLast(label: String) = _state.update { s ->
+  private fun addTool(call: ToolCall) = _state.update { s ->
     val t = s.turns.toMutableList()
     val i = t.indexOfLast { it.role == "assistant" }
-    if (i >= 0 && t[i].tools.lastOrNull() != label) t[i] = t[i].copy(tools = t[i].tools + label)
+    if (i >= 0) t[i] = t[i].copy(tools = t[i].tools + call)
+    s.copy(turns = t)
+  }
+
+  /** Marks the most recent still-running card for [tool] as finished (matched by name — the SSE stream carries no call id). */
+  private fun markTool(tool: String, status: ToolStatus) = _state.update { s ->
+    val t = s.turns.toMutableList()
+    val i = t.indexOfLast { it.role == "assistant" }
+    if (i >= 0) {
+      val tools = t[i].tools.toMutableList()
+      val j = tools.indexOfLast { it.tool == tool && it.status == ToolStatus.RUNNING }
+      if (j >= 0) tools[j] = tools[j].copy(status = status)
+      else tools.add(ToolCall(tool, status = status))
+      t[i] = t[i].copy(tools = tools)
+    }
     s.copy(turns = t)
   }
 

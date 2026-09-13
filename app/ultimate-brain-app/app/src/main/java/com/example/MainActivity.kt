@@ -52,6 +52,7 @@ import com.example.viewmodel.isTopLevelTab
 class MainActivity : ComponentActivity() {
   private val viewModel: MyDayViewModel by viewModels()
   private val chatViewModel: com.example.viewmodel.ChatViewModel by viewModels()
+  private val routinesViewModel: com.example.viewmodel.RoutinesViewModel by viewModels()
 
   private val notifPermission =
     registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -212,6 +213,7 @@ class MainActivity : ComponentActivity() {
           composable("recipes") { com.example.ui.screens.RecipesScreen(viewModel) }
           composable("recipe_detail") { com.example.ui.screens.RecipeDetailScreen(viewModel) }
           composable("meal_planner") { com.example.ui.screens.MealPlannerScreen(viewModel) }
+          composable("routines") { com.example.ui.screens.RoutinesScreen(viewModel, routinesViewModel) }
         }
         com.example.ui.components.QuickEditSheetHost(viewModel)
         }
@@ -277,4 +279,5 @@ private fun routeFor(screen: AppScreen): String = when (screen) {
   AppScreen.RECIPES -> "recipes"
   AppScreen.RECIPE_DETAIL -> "recipe_detail"
   AppScreen.MEAL_PLANNER -> "meal_planner"
+  AppScreen.ROUTINES -> "routines"
 }

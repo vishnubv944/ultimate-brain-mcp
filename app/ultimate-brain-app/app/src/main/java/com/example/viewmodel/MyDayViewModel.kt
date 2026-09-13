@@ -73,6 +73,7 @@ enum class AppScreen {
   GENRES,
   RECIPES, RECIPE_DETAIL,
   MEAL_PLANNER,
+  ROUTINES,
 }
 
 /**

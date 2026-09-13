@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tag
@@ -76,6 +77,7 @@ fun MoreHubScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
   )
   val system = listOf(
     HubEntry(Icons.Default.Search, cs.onSurfaceVariant, "Search", "Everything", AppScreen.GLOBAL_SEARCH),
+    HubEntry(Icons.Default.Schedule, cs.primary, "Routines", "Scheduled Hermes prompts", AppScreen.ROUTINES),
     HubEntry(Icons.Default.Settings, cs.onSurfaceVariant, "Settings",
       if (uiState.isRemote) "Notion connected" else "Sample data", AppScreen.SETTINGS),
   )
