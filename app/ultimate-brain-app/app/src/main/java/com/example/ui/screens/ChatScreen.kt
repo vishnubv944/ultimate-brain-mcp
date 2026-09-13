@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,10 +32,15 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
@@ -43,11 +50,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -70,7 +82,10 @@ import com.example.ui.components.EmptyLine
 import com.example.ui.components.MarkdownBody
 import com.example.ui.components.RenameDialog
 import com.example.ui.components.TodayPad
+import com.example.data.hermes.DocumentAttachment
+import com.example.data.hermes.ImageAttachment
 import com.example.data.hermes.encodeImageForUpload
+import com.example.data.hermes.readDocumentForUpload
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.ChatTurn
 import com.example.viewmodel.ChatViewModel
@@ -154,13 +169,16 @@ fun ChatScreen(
     },
   ) {
     // A dedicated scaffold, not the shared tab ScreenScaffold: the bottom nav
-    // must disappear (not just get covered) once the IME opens, and the
-    // Scaffold's own content insets already reserve IME space — a second
-    // .imePadding() on the composer would double that gap. See the redesign
-    // plan (audit: keyboard leaves a dead space above the composer).
+    // must disappear (not just get covered) once the IME opens. Scaffold's
+    // own IME inset handling turned out unreliable once this screen sits
+    // inside a ModalNavigationDrawer (content was rendering full-height
+    // *behind* the keyboard on-device, composer included) — so IME is
+    // switched off here (contentWindowInsets excludes it) and applied once,
+    // explicitly, via .imePadding() below.
     val imeVisible = WindowInsets.isImeVisible
     Scaffold(
       modifier = modifier.fillMaxSize(),
+      contentWindowInsets = WindowInsets(0, 0, 0, 0),
       topBar = {
         Column {
           TopAppBar(
@@ -193,7 +211,7 @@ fun ChatScreen(
       },
       containerColor = MaterialTheme.colorScheme.background,
     ) { pad ->
-      Column(Modifier.fillMaxSize().padding(pad)) {
+      Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
         if (!s.configured) {
           ConfigureHint(viewModel)
           return@Column
@@ -252,12 +270,15 @@ fun ChatScreen(
           value = s.input,
           streaming = s.streaming,
           attachedImage = s.attachedImage,
+          attachedDocName = s.attachedDocName,
           onValue = chatViewModel::setInput,
           onSend = chatViewModel::send,
           onStop = chatViewModel::stop,
-          onAttach = { uri -> chatViewModel.setAttachedImage(uri) },
-          onClearAttach = { chatViewModel.setAttachedImage(null) },
-          onEncoded = { uri, attachment -> chatViewModel.setAttachedImage(uri, attachment) },
+          onAttachImage = { uri -> chatViewModel.setAttachedImage(uri) },
+          onClearAttachImage = { chatViewModel.setAttachedImage(null) },
+          onImageEncoded = { uri, attachment -> chatViewModel.setAttachedImage(uri, attachment) },
+          onClearAttachDoc = { chatViewModel.setAttachedDoc(null) },
+          onDocRead = { doc -> if (doc != null) chatViewModel.setAttachedDoc(doc) else chatViewModel.docAttachFailed() },
         )
       }
     }
@@ -344,13 +365,14 @@ private fun TurnBubble(turn: ChatTurn) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start) {
     Column(
       Modifier
-        .widthIn(max = 320.dp)
+        .fillMaxWidth(0.85f)
         .then(
           if (isUser) Modifier
-            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
           else Modifier,
         ),
+      horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
       turn.imagePreview?.let { uri ->
         AsyncImage(
@@ -358,16 +380,24 @@ private fun TurnBubble(turn: ChatTurn) {
           contentDescription = "Attached image",
           modifier = Modifier
             .heightIn(max = 180.dp)
-            .padding(bottom = if (turn.text.isNotBlank()) 6.dp else 0.dp)
-            .then(Modifier.width(180.dp)),
+            .width(180.dp)
+            .padding(bottom = if (turn.text.isNotBlank() || turn.docName != null) 6.dp else 0.dp),
+        )
+      }
+      turn.docName?.let { name ->
+        AssistChip(
+          onClick = {},
+          label = { Text(name, maxLines = 1) },
+          leadingIcon = { Icon(Icons.Default.InsertDriveFile, null, Modifier.size(AssistChipDefaults.IconSize)) },
+          modifier = Modifier.padding(bottom = if (turn.text.isNotBlank()) 6.dp else 0.dp),
         )
       }
       if (turn.tools.isNotEmpty()) {
-        turn.tools.forEach { t -> ToolCallCard(t) }
-        if (turn.text.isNotBlank()) Spacer(Modifier.height(4.dp))
+        ToolChips(turn.tools)
+        if (turn.text.isNotBlank()) Spacer(Modifier.height(6.dp))
       }
       if (isUser) {
-        if (turn.text.isNotBlank()) Text(turn.text, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium)
+        if (turn.text.isNotBlank()) Text(turn.text, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyLarge)
       } else if (turn.text.isNotBlank()) {
         MarkdownBody(turn.text)
       } else if (turn.streaming) {
@@ -377,44 +407,25 @@ private fun TurnBubble(turn: ChatTurn) {
   }
 }
 
+/** Native Material chips — one per tool call, colored by status. Plain and legible beats a bespoke card. */
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ToolCallCard(call: ToolCall) {
-  var expanded by remember(call.tool, call.preview) { mutableStateOf(false) }
-  val dotColor = when (call.status) {
-    ToolStatus.RUNNING -> Color(0xFFE0A93C)
-    ToolStatus.DONE -> Color(0xFF4CAF6D)
-    ToolStatus.FAILED -> MaterialTheme.colorScheme.error
-  }
-  androidx.compose.material3.Surface(
-    shape = RoundedCornerShape(10.dp),
-    color = MaterialTheme.colorScheme.surfaceContainer,
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(vertical = 2.dp)
-      .then(if (call.preview != null) Modifier.clickable { expanded = !expanded } else Modifier),
+private fun ToolChips(tools: List<ToolCall>) {
+  androidx.compose.foundation.layout.FlowRow(
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
-    Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).background(dotColor, CircleShape))
-        Spacer(Modifier.width(7.dp))
-        Icon(Icons.Default.Bolt, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(3.dp))
-        Text(
-          call.tool,
-          style = MaterialTheme.typography.labelMedium,
-          fontWeight = FontWeight.SemiBold,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
+    tools.forEach { call ->
+      val (icon, tint) = when (call.status) {
+        ToolStatus.RUNNING -> Icons.Default.Bolt to MaterialTheme.colorScheme.tertiary
+        ToolStatus.DONE -> Icons.Default.Check to MaterialTheme.colorScheme.primary
+        ToolStatus.FAILED -> Icons.Default.ErrorOutline to MaterialTheme.colorScheme.error
       }
-      if (call.preview != null && (expanded || call.preview.length <= 60)) {
-        Spacer(Modifier.height(3.dp))
-        Text(
-          call.preview,
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = if (expanded) 20 else 1,
-        )
-      }
+      AssistChip(
+        onClick = {},
+        label = { Text(call.tool, style = MaterialTheme.typography.labelMedium) },
+        leadingIcon = { Icon(icon, null, Modifier.size(AssistChipDefaults.IconSize), tint = tint) },
+      )
     }
   }
 }
@@ -425,63 +436,116 @@ private fun Composer(
   value: String,
   streaming: Boolean,
   attachedImage: Uri?,
+  attachedDocName: String?,
   onValue: (String) -> Unit,
   onSend: () -> Unit,
   onStop: () -> Unit,
-  onAttach: (Uri?) -> Unit,
-  onClearAttach: () -> Unit,
-  onEncoded: (Uri?, com.example.data.hermes.ImageAttachment?) -> Unit,
+  onAttachImage: (Uri?) -> Unit,
+  onClearAttachImage: () -> Unit,
+  onImageEncoded: (Uri?, ImageAttachment?) -> Unit,
+  onClearAttachDoc: () -> Unit,
+  onDocRead: (DocumentAttachment?) -> Unit,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+  var attachMenuOpen by remember { mutableStateOf(false) }
+
+  val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
     if (uri == null) return@rememberLauncherForActivityResult
-    onAttach(uri)
-    scope.launch {
-      val encoded = encodeImageForUpload(context, uri)
-      onEncoded(uri, encoded)
-    }
+    onAttachImage(uri)
+    scope.launch { onImageEncoded(uri, encodeImageForUpload(context, uri)) }
+  }
+  val docPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    if (uri == null) return@rememberLauncherForActivityResult
+    scope.launch { onDocRead(readDocumentForUpload(context, uri)) }
   }
 
   HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-  Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+  Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
     attachedImage?.let { uri ->
-      Box(Modifier.padding(bottom = 6.dp)) {
-        AsyncImage(
-          model = uri,
-          contentDescription = "Attached image",
-          modifier = Modifier.size(52.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp)),
-        )
-        IconButton(
-          onClick = onClearAttach,
-          modifier = Modifier.size(20.dp).align(Alignment.TopEnd)
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f), CircleShape),
-        ) {
-          Icon(Icons.Default.Close, "Remove image", tint = Color.White, modifier = Modifier.size(12.dp))
-        }
-      }
+      AttachmentChip(
+        onRemove = onClearAttachImage,
+        content = {
+          AsyncImage(
+            model = uri,
+            contentDescription = "Attached image",
+            modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp)),
+          )
+        },
+      )
+      Spacer(Modifier.height(6.dp))
+    }
+    attachedDocName?.let { name ->
+      AssistChip(
+        onClick = onClearAttachDoc,
+        label = { Text(name, maxLines = 1) },
+        leadingIcon = { Icon(Icons.Default.InsertDriveFile, null, Modifier.size(AssistChipDefaults.IconSize)) },
+        trailingIcon = { Icon(Icons.Default.Close, "Remove", Modifier.size(AssistChipDefaults.IconSize)) },
+      )
+      Spacer(Modifier.height(6.dp))
     }
     Row(verticalAlignment = Alignment.Bottom) {
-      IconButton(onClick = { picker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-        Icon(Icons.Default.AttachFile, contentDescription = "Attach image", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+      Box {
+        IconButton(onClick = { attachMenuOpen = true }) {
+          Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = attachMenuOpen, onDismissRequest = { attachMenuOpen = false }) {
+          DropdownMenuItem(
+            text = { Text("Photo") },
+            leadingIcon = { Icon(Icons.Default.Image, null) },
+            onClick = {
+              attachMenuOpen = false
+              imagePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+          )
+          DropdownMenuItem(
+            text = { Text("Document") },
+            leadingIcon = { Icon(Icons.Default.Description, null) },
+            onClick = { attachMenuOpen = false; docPicker.launch("*/*") },
+          )
+        }
       }
-      OutlinedTextField(
+      // Native filled message-field look — no outline, a plain rounded pill
+      // on the surface tone, matching stock Android chat inputs.
+      TextField(
         value = value,
         onValueChange = onValue,
         placeholder = { Text("Message Hermes… (try \"/\")") },
         modifier = Modifier.weight(1f),
         maxLines = 5,
+        shape = RoundedCornerShape(24.dp),
+        colors = TextFieldDefaults.colors(
+          focusedIndicatorColor = Color.Transparent,
+          unfocusedIndicatorColor = Color.Transparent,
+          disabledIndicatorColor = Color.Transparent,
+          focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+          unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
       )
-      Spacer(Modifier.size(6.dp))
+      Spacer(Modifier.size(4.dp))
       if (streaming) {
         IconButton(onClick = onStop) {
           Icon(Icons.Default.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.error)
         }
       } else {
-        IconButton(onClick = onSend, enabled = value.isNotBlank() || attachedImage != null) {
+        IconButton(onClick = onSend, enabled = value.isNotBlank() || attachedImage != null || attachedDocName != null) {
           Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
         }
       }
+    }
+  }
+}
+
+@Composable
+private fun AttachmentChip(onRemove: () -> Unit, content: @Composable () -> Unit) {
+  Box {
+    content()
+    IconButton(
+      onClick = onRemove,
+      modifier = Modifier.size(18.dp).align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f), CircleShape),
+    ) {
+      Icon(Icons.Default.Close, "Remove", tint = Color.White, modifier = Modifier.size(11.dp))
     }
   }
 }

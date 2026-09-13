@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.hermes.ChatEvent
+import com.example.data.hermes.DocumentAttachment
 import com.example.data.hermes.HermesConfig
 import com.example.data.hermes.HermesRepository
 import com.example.data.hermes.HermesSession
@@ -32,6 +33,7 @@ data class ChatTurn(
   val tools: List<ToolCall> = emptyList(),
   val streaming: Boolean = false,
   val imagePreview: Uri? = null, // set on the user turn when an image was attached
+  val docName: String? = null,   // set on the user turn when a document was attached
 )
 
 /** A built-in "/" command — the Session + Turn-control groups from the palette plan. */
@@ -75,6 +77,7 @@ data class ChatUiState(
   val pendingApproval: Pair<String, String>? = null, // runId, summary
   val skills: List<HermesSkill> = emptyList(),
   val attachedImage: Uri? = null,
+  val attachedDocName: String? = null,
   // One-shot UI intents the ViewModel can't perform itself (drawer/dialog live in the Composable).
   val requestOpenHistory: Int = 0,
   val requestRename: Int = 0,
@@ -91,6 +94,7 @@ class ChatViewModel : ViewModel() {
   private var streamJob: Job? = null
   private var currentRunId: String? = null
   private var pendingImage: ImageAttachment? = null
+  private var pendingDoc: DocumentAttachment? = null
   private var skillsLoaded = false
 
   fun onResume() {
@@ -152,6 +156,7 @@ class ChatViewModel : ViewModel() {
   fun newChat() {
     streamJob?.cancel()
     setAttachedImage(null)
+    setAttachedDoc(null)
     _state.update { it.copy(activeSessionId = null, activeTitle = null, turns = emptyList(), streaming = false, input = "") }
   }
 
@@ -176,6 +181,16 @@ class ChatViewModel : ViewModel() {
   fun setAttachedImage(uri: Uri?, attachment: ImageAttachment? = null) {
     pendingImage = attachment
     _state.update { it.copy(attachedImage = uri) }
+  }
+
+  fun setAttachedDoc(doc: DocumentAttachment?) {
+    pendingDoc = doc
+    _state.update { it.copy(attachedDocName = doc?.name) }
+  }
+
+  /** Surfaced when a picked document couldn't be read as text (a PDF, a photo, etc.). */
+  fun docAttachFailed() {
+    _state.update { it.copy(error = "Only text-based files are supported right now (Hermes can't accept binary file uploads yet).") }
   }
 
   /** Handles a palette selection. Callback-only commands (resume/title) bump a request counter the Composable observes. */
@@ -207,20 +222,29 @@ class ChatViewModel : ViewModel() {
     val text = _state.value.input.trim()
     val image = pendingImage
     val imagePreview = _state.value.attachedImage
-    if ((text.isEmpty() && image == null) || _state.value.streaming) return
+    val doc = pendingDoc
+    if ((text.isEmpty() && image == null && doc == null) || _state.value.streaming) return
     pendingImage = null
+    pendingDoc = null
+    // The doc's content isn't a real attachment the server understands — it's
+    // folded into the plain message text (see DocumentAttachment's kdoc). The
+    // displayed user bubble stays just what they typed, with a file chip.
+    val outgoing = if (doc != null) {
+      "Attached file: ${doc.name}\n\n```\n${doc.text}\n```" + (if (text.isNotEmpty()) "\n\n$text" else "")
+    } else text
     _state.update {
       it.copy(
         input = "",
         attachedImage = null,
-        turns = it.turns + ChatTurn("user", text, imagePreview = imagePreview) + ChatTurn("assistant", "", streaming = true),
+        attachedDocName = null,
+        turns = it.turns + ChatTurn("user", text, imagePreview = imagePreview, docName = doc?.name) + ChatTurn("assistant", "", streaming = true),
         streaming = true,
         error = null,
       )
     }
     viewModelScope.launch {
       val sid = _state.value.activeSessionId ?: run {
-        val created = runCatching { repo.createSession(defaultTitle(text.ifBlank { "Image" })) }.getOrNull()
+        val created = runCatching { repo.createSession(defaultTitle(text.ifBlank { doc?.name ?: "Image" })) }.getOrNull()
         if (created == null) {
           failStream("Couldn't start a chat. Check the connection in Settings.")
           return@launch
@@ -229,7 +253,7 @@ class ChatViewModel : ViewModel() {
         refreshSessions()
         created.id
       }
-      streamTurn(sid, text, if (image != null) listOf(image) else emptyList())
+      streamTurn(sid, outgoing, if (image != null) listOf(image) else emptyList())
     }
   }
 
