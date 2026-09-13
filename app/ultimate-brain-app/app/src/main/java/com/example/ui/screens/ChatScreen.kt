@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,6 +60,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -175,23 +176,20 @@ fun ChatScreen(
     // A dedicated scaffold, not the shared tab ScreenScaffold: the bottom nav
     // must disappear (not just get covered) once the IME opens.
     //
-    // While the bottom nav is visible it's the thing that paints over the
-    // navigationBars inset (M3's NavigationBar does that internally); once
-    // it's hidden for typing, nothing was painting that sliver any more, so
-    // the raw (black) window background showed through right above the
-    // keyboard. Fix: pad by the union of navigationBars + ime (not ime
-    // alone) so the reserved space always covers whichever the system is
-    // actually showing there, and paint the theme's background behind the
-    // whole screen so any inset gap resolves to the app's color, never
-    // black. contentWindowInsets is zeroed so Scaffold doesn't also reserve
-    // this space a second time inside the content padding.
+    // IME/nav-bar handling follows Google's own Jetchat reference sample
+    // (compose-samples/Jetchat, ConversationContent + UserInput) instead of
+    // another guess: Scaffold explicitly excludes navigationBars and ime
+    // from what it reserves, and the Composer — not the Scaffold, not a
+    // wrapper — applies .navigationBarsPadding().imePadding() on itself.
+    // That's what let three different Scaffold-level/wrapper-level attempts
+    // here go wrong: this space is the input field's own responsibility,
+    // not something to smear across ancestors.
     val imeVisible = WindowInsets.isImeVisible
-    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
     Scaffold(
-      modifier = modifier.fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
-        .windowInsetsPadding(bottomInsets),
-      contentWindowInsets = WindowInsets(0, 0, 0, 0),
+      modifier = modifier.fillMaxSize(),
+      contentWindowInsets = ScaffoldDefaults.contentWindowInsets
+        .exclude(WindowInsets.navigationBars)
+        .exclude(WindowInsets.ime),
       topBar = {
         Column {
           TopAppBar(
@@ -473,6 +471,10 @@ private fun Composer(
     scope.launch { onDocRead(readDocumentForUpload(context, uri)) }
   }
 
+  // Matches Google's own Jetchat sample (UserInput): the input field is
+  // responsible for its own navigationBars + ime space, applied directly
+  // here rather than by the Scaffold or some ancestor.
+  Column(Modifier.navigationBarsPadding().imePadding()) {
   HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
   Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
     attachedImage?.let { uri ->
@@ -546,6 +548,7 @@ private fun Composer(
         }
       }
     }
+  }
   }
 }
 
