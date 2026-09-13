@@ -169,15 +169,19 @@ fun ChatScreen(
     },
   ) {
     // A dedicated scaffold, not the shared tab ScreenScaffold: the bottom nav
-    // must disappear (not just get covered) once the IME opens. Scaffold's
-    // own IME inset handling turned out unreliable once this screen sits
-    // inside a ModalNavigationDrawer (content was rendering full-height
-    // *behind* the keyboard on-device, composer included) — so IME is
-    // switched off here (contentWindowInsets excludes it) and applied once,
-    // explicitly, via .imePadding() below.
+    // must disappear (not just get covered) once the IME opens. IME handling
+    // is done exactly once, and at the outermost level: .imePadding() on the
+    // Scaffold itself shrinks the whole Scaffold's bounds (topBar + content +
+    // bottomBar together) to make room for the keyboard, so everything below
+    // relayouts against the *actual* remaining height. Doing it one level
+    // deeper (padding the content lambda instead) measured against a stale
+    // height here — on-device that left a dead gap the size of the keyboard
+    // between the composer and the keyboard instead of closing it.
+    // contentWindowInsets is zeroed so Scaffold doesn't also reserve ime
+    // space a second time inside the content padding.
     val imeVisible = WindowInsets.isImeVisible
     Scaffold(
-      modifier = modifier.fillMaxSize(),
+      modifier = modifier.fillMaxSize().imePadding(),
       contentWindowInsets = WindowInsets(0, 0, 0, 0),
       topBar = {
         Column {
@@ -211,7 +215,7 @@ fun ChatScreen(
       },
       containerColor = MaterialTheme.colorScheme.background,
     ) { pad ->
-      Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
+      Column(Modifier.fillMaxSize().padding(pad)) {
         if (!s.configured) {
           ConfigureHint(viewModel)
           return@Column
