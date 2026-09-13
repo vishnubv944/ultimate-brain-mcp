@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.squareup.moshi.JsonClass
+
 enum class TaskStatus {
   TODO,
   DOING,
@@ -12,12 +14,14 @@ enum class Priority {
   LOW
 }
 
+@JsonClass(generateAdapter = true)
 data class SubTask(
   val id: String,
   val name: String,
   val isCompleted: Boolean = false
 )
 
+@JsonClass(generateAdapter = true)
 data class Task(
   val id: String,
   val name: String,

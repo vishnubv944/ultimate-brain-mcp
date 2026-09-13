@@ -10,7 +10,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.unit.dp
 import com.example.ui.screens.EditProjectScreen
 import com.example.ui.screens.GlobalSearchScreen
 import com.example.ui.screens.GoalDetailScreen
@@ -56,6 +60,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     com.example.data.FilterStore.init(this)
+    com.example.data.WorkspaceCache.init(this)
     com.example.data.hermes.HermesConfig.init(this)
 
     // Focus-timer notification permission (Android 13+). Asked once up front so
@@ -116,6 +121,14 @@ class MainActivity : ComponentActivity() {
         dynamicColor = uiState.dynamicColorEnabled,
       ) {
         androidx.compose.foundation.layout.Box {
+        if (!uiState.initialLoadComplete) {
+          // First-ever launch, nothing cached yet: show a loading screen
+          // instead of an empty Today tab while the initial Notion sync is
+          // still in flight. Every subsequent cold start skips this — the
+          // ViewModel restores the last synced snapshot before this can
+          // ever be reached.
+          AppLoadingScreen()
+        } else {
         NavHost(navController = navController, startDestination = "today") {
           composable("today") {
             MyDayScreen(
@@ -202,7 +215,32 @@ class MainActivity : ComponentActivity() {
         }
         com.example.ui.components.QuickEditSheetHost(viewModel)
         }
+        }
       }
+    }
+  }
+}
+
+@androidx.compose.runtime.Composable
+private fun AppLoadingScreen() {
+  androidx.compose.foundation.layout.Box(
+    modifier = androidx.compose.ui.Modifier
+      .fillMaxSize()
+      .background(androidx.compose.material3.MaterialTheme.colorScheme.background),
+    contentAlignment = androidx.compose.ui.Alignment.Center,
+  ) {
+    androidx.compose.foundation.layout.Column(
+      horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+    ) {
+      androidx.compose.material3.CircularProgressIndicator(
+        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+      )
+      androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(16.dp))
+      androidx.compose.material3.Text(
+        "Loading your workspace…",
+        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }

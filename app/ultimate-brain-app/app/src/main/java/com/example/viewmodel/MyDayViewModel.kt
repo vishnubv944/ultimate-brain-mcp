@@ -8,6 +8,7 @@ import com.example.R
 import com.example.data.DateUtils
 import com.example.data.FilterStore
 import com.example.data.UbRepository
+import com.example.data.WorkspaceCache
 import com.example.domain.FilterEngine
 import com.example.domain.filterRow
 import com.example.focus.FocusController
@@ -30,6 +31,7 @@ import com.example.model.TagModel
 import com.example.model.Task
 import com.example.model.TaskStatus
 import com.example.model.WorkSessionModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +41,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 enum class AppScreen {
@@ -293,6 +296,12 @@ data class MyDayUiState(
   val isRemote: Boolean = false,
   val isSyncing: Boolean = false,
   val syncError: String? = null,
+  // False only until the very first sync of this install resolves (or a
+  // cached snapshot from a previous sync is available to show immediately).
+  // MainActivity shows a loading screen instead of the real UI while this is
+  // false and there's nothing cached — everywhere else, "list is empty" can
+  // be trusted to mean genuinely empty rather than "hasn't loaded yet".
+  val initialLoadComplete: Boolean = false,
   val pendingWriteCount: Int = 0,
   val loadingOlder: Boolean = false,
   val olderCompletedLoaded: Boolean = false,
@@ -652,8 +661,27 @@ class MyDayViewModel : ViewModel() {
       it.copy(customFilters = FilterStore.loadFilters(), chipConfigs = FilterStore.loadConfigs())
     }
     if (repo.isRemote) {
+      // Show the last synced snapshot immediately — don't make the user wait
+      // through a network round-trip on every cold start just to see what
+      // they already had loaded a minute ago.
+      WorkspaceCache.load()?.let { cached ->
+        _uiState.update {
+          it.copy(
+            tasks = cached.tasks,
+            projects = cached.projects,
+            notes = cached.notes,
+            goals = cached.goals,
+            tags = cached.tags,
+            milestones = cached.milestones,
+            initialLoadComplete = true,
+          )
+        }
+      }
       refreshFromNotion()
       loadLibrary()
+    } else {
+      // Not configured — there's nothing to sync, so "loading" is already over.
+      _uiState.update { it.copy(initialLoadComplete = true) }
     }
   }
 
@@ -802,12 +830,16 @@ class MyDayViewModel : ViewModel() {
             milestones = if (w.milestones.isNotEmpty()) w.milestones else state.milestones,
             isSyncing = false,
             syncError = null,
+            initialLoadComplete = true,
           )
         }
+        // Snapshot the freshly synced workspace so the next cold start can
+        // show it instantly instead of an empty/loading screen.
+        withContext(Dispatchers.IO) { WorkspaceCache.save(w) }
         drainPendingWrites()
       } catch (e: Exception) {
         android.util.Log.e("UbSync", "workspace load failed", e)
-        _uiState.update { it.copy(isSyncing = false, syncError = e.message ?: "Sync failed") }
+        _uiState.update { it.copy(isSyncing = false, syncError = e.message ?: "Sync failed", initialLoadComplete = true) }
       }
     }
   }

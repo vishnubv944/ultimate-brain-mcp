@@ -15,6 +15,7 @@ import com.example.model.TagModel
 import com.example.model.Task
 import com.example.model.TaskStatus
 import com.example.model.WorkSessionModel
+import com.squareup.moshi.JsonClass
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -30,7 +31,11 @@ data class LibraryData(
   val workSessions: List<com.example.model.WorkSessionModel> = emptyList(),
 )
 
-/** Everything the app pulls from Notion in one shot. */
+/**
+ * Everything the app pulls from Notion in one shot. Also the shape persisted
+ * by [WorkspaceCache] — hence the Moshi codegen annotation.
+ */
+@JsonClass(generateAdapter = true)
 data class WorkspaceData(
   val tasks: List<Task>,
   val projects: List<ProjectModel>,

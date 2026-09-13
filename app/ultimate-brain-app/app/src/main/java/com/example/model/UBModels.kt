@@ -1,6 +1,9 @@
 package com.example.model
 
+import com.squareup.moshi.JsonClass
+
 // --- Projects ---
+@JsonClass(generateAdapter = true)
 data class ProjectModel(
   val id: String,
   val name: String,
@@ -24,6 +27,7 @@ data class ProjectModel(
 )
 
 // --- Notes ---
+@JsonClass(generateAdapter = true)
 data class NoteModel(
   val id: String,
   val title: String,
@@ -41,6 +45,7 @@ data class NoteModel(
 )
 
 // --- Goals ---
+@JsonClass(generateAdapter = true)
 data class GoalProjectSummary(
   val id: String,
   val name: String,
@@ -51,6 +56,7 @@ data class GoalProjectSummary(
   val tasksSummary: String
 )
 
+@JsonClass(generateAdapter = true)
 data class GoalModel(
   val id: String,
   val name: String,
@@ -73,6 +79,7 @@ data class GoalModel(
 )
 
 // --- Milestones ---
+@JsonClass(generateAdapter = true)
 data class MilestoneModel(
   val id: String,
   val name: String,
@@ -90,6 +97,7 @@ data class MilestoneModel(
 )
 
 // --- Tags ---
+@JsonClass(generateAdapter = true)
 data class TagHierarchyItem(
   val id: String,
   val name: String,
@@ -97,6 +105,7 @@ data class TagHierarchyItem(
   val icon: String? = null
 )
 
+@JsonClass(generateAdapter = true)
 data class TagModel(
   val id: String,
   val name: String,
