@@ -428,7 +428,16 @@ data class MyDayUiState(
       else tasks.filter { BuiltinFilters.taskMatches(key, it) }
     return if (cf?.sort != null) FilterEngine.sorted(base, cf.sort) { it.filterRow() }
     else if (key == "DONE") base.sortedByDescending { it.completionDate ?: "" }
-    else base.sortedWith(compareBy({ DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX }, { it.name }))
+    // Todoist's convention: within the same due date, higher priority floats
+    // to the top instead of falling back to alphabetical — priority is a
+    // visual/ordering signal, not just a badge.
+    else base.sortedWith(
+      compareBy(
+        { DateUtils.parseIsoDate(it.due) ?: java.time.LocalDate.MAX },
+        { it.priority?.ordinal ?: Int.MAX_VALUE },
+        { it.name },
+      ),
+    )
   }
 
   fun projectsMatching(key: String): List<ProjectModel> {

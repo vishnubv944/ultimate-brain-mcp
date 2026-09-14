@@ -103,6 +103,7 @@ fun ProjectDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier
               )
               com.example.ui.components.FieldRow(
                 "Progress", project.progressText.ifBlank { "0%" }, icon = Icons.Default.TrendingUp,
+                valueColor = MaterialTheme.colorScheme.primary,
               )
               com.example.ui.components.OptionRow(
                 "Goal", project.goalName, uiState.goals.map { it.name },

@@ -113,6 +113,7 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             leadingIconTint = MaterialTheme.colorScheme.entityGoals,
             strikethrough = goal.status == "Achieved",
             onClick = { viewModel.openGoalDetail(goal.id) },
+            trailing = { goalProgressTrailing(goal) },
             modifier = Modifier.padding(horizontal = TodayPad),
           )
         }
@@ -125,6 +126,7 @@ fun GoalsScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
             leadingIconTint = MaterialTheme.colorScheme.entityGoals,
             strikethrough = goal.status == "Achieved",
             onClick = { viewModel.openGoalDetail(goal.id) },
+            trailing = { goalProgressTrailing(goal) },
             modifier = Modifier.padding(horizontal = TodayPad),
           )
           if (index < list.lastIndex) ThinDivider(Modifier.padding(horizontal = TodayPad))
@@ -141,10 +143,24 @@ private fun goalMatchesFilter(g: GoalModel, f: GoalFilter) = when (f) {
   GoalFilter.DROPPED -> g.isArchived
 }
 
+// Progress is pulled out as its own trailing stat (see goalProgressTrailing)
+// instead of living in this line — Streaks/Spark's whole design lesson is
+// that the one number that matters should lead, not get buried in a joined
+// meta string alongside project count and deadline.
 private fun goalMeta(g: GoalModel): String {
   val parts = mutableListOf<String>()
-  if (g.aggregatedProgressText.isNotBlank() && g.aggregatedProgressText != "0%") parts += g.aggregatedProgressText
   if (g.linkedProjects.isNotEmpty()) parts += "${g.linkedProjects.size} projects"
   if (g.deadline.isNotBlank() && g.deadline != "—") parts += g.deadline
   return parts.joinToString("  ·  ")
+}
+
+@Composable
+private fun goalProgressTrailing(g: GoalModel) {
+  if (g.aggregatedProgressText.isBlank() || g.aggregatedProgressText == "0%") return
+  Text(
+    g.aggregatedProgressText,
+    style = MaterialTheme.typography.titleMedium,
+    fontWeight = FontWeight.Bold,
+    color = MaterialTheme.colorScheme.entityGoals,
+  )
 }

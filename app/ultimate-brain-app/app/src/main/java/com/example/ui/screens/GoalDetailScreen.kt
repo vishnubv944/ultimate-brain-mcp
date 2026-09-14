@@ -105,7 +105,11 @@ fun GoalDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
                 icon = Icons.Default.Tag,
               )
               com.example.ui.components.FieldRow(
+                // The one number Spark/Streaks-style goal apps make the lead
+                // metric — bold and accent-colored so it reads as the
+                // standout row, not just another property line.
                 "Progress", goal.aggregatedProgressText.ifBlank { "0%" }, icon = Icons.Default.TrendingUp,
+                valueColor = MaterialTheme.colorScheme.primary,
               )
               com.example.ui.components.DateFieldRow(
                 "Deadline", goal.deadlineIso, { viewModel.setGoalDeadline(goal.id, it) }, icon = Icons.Default.Event,

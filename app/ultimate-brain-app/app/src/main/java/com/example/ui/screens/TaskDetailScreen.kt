@@ -52,6 +52,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -343,11 +345,24 @@ private fun TaskSubtasksTab(
   newSubtask: String,
   onNewSubtaskChange: (String) -> Unit,
 ) {
+  // Todoist's task view keeps a long sub-task list scannable with a
+  // show/hide-completed toggle instead of always showing every done item
+  // forever. Default to hidden once there's enough completed to be worth
+  // collapsing.
+  val completedCount = task.subTasks.count { it.isCompleted }
+  var showCompleted by remember(task.id) { mutableStateOf(completedCount <= 2) }
   Column {
     if (task.subTasks.isNotEmpty()) {
-      SectionHeader("Subtasks " + task.subTasks.count { it.isCompleted } + "/" + task.subTasks.size)
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SectionHeader("Subtasks $completedCount/${task.subTasks.size}", modifier = Modifier.weight(1f))
+        if (completedCount > 0) {
+          TextButton(onClick = { showCompleted = !showCompleted }) {
+            Text(if (showCompleted) "Hide completed" else "Show completed")
+          }
+        }
+      }
     }
-    task.subTasks.forEach { st ->
+    task.subTasks.filter { showCompleted || !it.isCompleted }.forEach { st ->
       Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
           .clickable { viewModel.toggleSubTask(task.id, st.id) }.padding(vertical = 6.dp, horizontal = 4.dp),
@@ -364,10 +379,11 @@ private fun TaskSubtasksTab(
           st.name,
           style = MaterialTheme.typography.bodyMedium,
           color = if (st.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+          textDecoration = if (st.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
         )
       }
     }
-    OutlinedTextField(
+    TextField(
       value = newSubtask,
       onValueChange = onNewSubtaskChange,
       placeholder = { Text("New subtask") },
@@ -375,6 +391,13 @@ private fun TaskSubtasksTab(
       keyboardActions = KeyboardActions(onDone = {
         if (newSubtask.isNotBlank()) { viewModel.addSubTask(task.id, newSubtask.trim()); onNewSubtaskChange("") }
       }),
+      shape = RoundedCornerShape(10.dp),
+      colors = androidx.compose.material3.TextFieldDefaults.colors(
+        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+      ),
       modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
     )
   }

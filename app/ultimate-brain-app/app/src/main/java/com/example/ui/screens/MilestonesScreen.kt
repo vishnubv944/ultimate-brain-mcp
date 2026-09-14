@@ -49,7 +49,7 @@ fun MilestonesScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
           EntityRow(
             title = m.name,
             meta = listOfNotNull(m.goalName.ifBlank { null }, m.targetDateText.ifBlank { null }).joinToString("  ·  "),
-            leadingCheck = m.status == "Completed",
+            leadingMilestone = m.status == "Completed",
             onLeadingClick = { viewModel.toggleMilestoneStatus(m.id) },
             strikethrough = m.status == "Completed",
             onClick = { viewModel.openMilestoneDetail(m.id) },

@@ -72,7 +72,13 @@ fun PeopleScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) {
       itemsIndexed(uiState.people.sortedBy { it.name }, key = { _, p -> p.id }) { i, p ->
         EntityRow(
           title = p.name.ifBlank { "(no name)" },
-          meta = listOfNotNull(p.company.ifBlank { null }, p.relationship.firstOrNull(), p.pipelineStatus).joinToString("  ·  "),
+          // Personal-CRM apps (Clay, Dex) lead with recent-interaction
+          // context, not a static profile line — surface "last check-in"
+          // right in the list so it's visible without opening the person.
+          meta = listOfNotNull(
+            p.company.ifBlank { null }, p.relationship.firstOrNull(), p.pipelineStatus,
+            p.lastCheckIn?.let { "last check-in $it" },
+          ).joinToString("  ·  "),
           leadingIcon = Icons.Default.Person,
           onClick = { viewModel.openPerson(p.id) },
           modifier = Modifier.padding(horizontal = TodayPad),
@@ -97,12 +103,15 @@ fun PersonDetailScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier)
       Text(p.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
       if (p.title.isNotBlank() || p.company.isNotBlank())
         Text(listOfNotNull(p.title.ifBlank { null }, p.company.ifBlank { null }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      // Personal-CRM apps (Clay, Dex) lead with recent interaction context
+      // instead of a generic contact-card layout — relationship/last
+      // check-in first, contact details second.
+      SectionHeader("Relationship")
+      Text((p.relationship + listOfNotNull(p.pipelineStatus)).joinToString(", ").ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium)
+      field("Last check-in", p.lastCheckIn ?: ""); field("Birthday", p.birthday ?: "")
       SectionHeader("Contact")
       field("Email", p.email); field("Phone", p.phone); field("Location", p.location)
       field("LinkedIn", p.linkedIn); field("Twitter/X", p.twitter); field("Website", p.website)
-      SectionHeader("Relationship")
-      Text((p.relationship + listOfNotNull(p.pipelineStatus)).joinToString(", ").ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium)
-      field("Birthday", p.birthday ?: ""); field("Last check-in", p.lastCheckIn ?: "")
       Spacer(Modifier.height(96.dp))
     }
   }

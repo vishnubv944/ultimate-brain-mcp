@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private sealed interface Md {
   data class H(val level: Int, val text: String) : Md
@@ -61,9 +62,25 @@ private fun sanitizeNotionMarkdown(raw: String): String {
   ).replace(s, "")
   s = Regex("""<(?:child[_-])?(?:linked[_-])?database\b[^>]*/?>""", RegexOption.IGNORE_CASE).replace(s, "")
 
-  // <callout icon="X">TEXT</callout>  ->  > X TEXT
+  // <callout icon="X">TEXT</callout>  ->  > X TEXT — but only when the icon
+  // is an actual emoji/glyph. Notion also uses this for a file/emoji icon
+  // path like "/icons/trophy_blue.svg", which isn't renderable text and
+  // was leaking through verbatim.
   s = Regex("""<callout\b(?:[^>]*\bicon="([^"]*)")?[^>]*>([\s\S]*?)</callout>""", RegexOption.IGNORE_CASE)
-    .replace(s) { "> ${(it.groupValues[1] + " " + it.groupValues[2].trim()).trim()}" }
+    .replace(s) {
+      val icon = it.groupValues[1].takeUnless { i -> i.startsWith("/") || i.contains('.') }
+      "> ${listOfNotNull(icon, it.groupValues[2].trim()).joinToString(" ")}"
+    }
+
+  // A bare page/section icon reference ("/icons/trophy_blue.svg" or any
+  // other icon path), wherever it shows up outside a tag — same issue,
+  // not renderable, just drop it.
+  s = Regex("""/icons?/\S+\.(?:svg|png|jpe?g)""", RegexOption.IGNORE_CASE).replace(s, "")
+
+  // Notion toggle headings export as "### Heading {toggle=\"true\"}" — the
+  // block-attribute suffix isn't Markdown, strip it so only the heading
+  // text remains.
+  s = Regex("""\s*\{[a-zA-Z-]+="[^"}]*"\}\s*$""", RegexOption.MULTILINE).replace(s, "")
 
   // <summary>TEXT</summary>  ->  a heading lead-in for the toggle
   s = Regex("""<summary>([\s\S]*?)</summary>""", RegexOption.IGNORE_CASE)
@@ -135,6 +152,11 @@ private fun parse(markdown: String): List<Md> {
   var i = 0
   while (i < lines.size) {
     val line = lines[i]
+    // Notion's markdown export indents a toggle's children under it, so a
+    // nested heading/quote/checkbox arrives as "   ### Why?" — match block
+    // markers against the trimmed line (we don't render nesting depth
+    // anyway) instead of requiring them at column 0.
+    val trimmed = line.trimStart()
     when {
       line.startsWith("```") -> {
         flush()
@@ -144,10 +166,11 @@ private fun parse(markdown: String): List<Md> {
         out += Md.Code(code.toString().trimEnd())
       }
       line.trim() == "---" || line.trim() == "***" || line.trim() == "___" -> { flush(); out += Md.Divider }
-      line.startsWith("### ") -> { flush(); out += Md.H(3, line.drop(4)) }
-      line.startsWith("## ") -> { flush(); out += Md.H(2, line.drop(3)) }
-      line.startsWith("# ") -> { flush(); out += Md.H(1, line.drop(2)) }
-      line.startsWith("> ") -> { flush(); out += Md.Quote(line.drop(2)) }
+      trimmed.startsWith("#### ") -> { flush(); out += Md.H(4, trimmed.drop(5)) }
+      trimmed.startsWith("### ") -> { flush(); out += Md.H(3, trimmed.drop(4)) }
+      trimmed.startsWith("## ") -> { flush(); out += Md.H(2, trimmed.drop(3)) }
+      trimmed.startsWith("# ") -> { flush(); out += Md.H(1, trimmed.drop(2)) }
+      trimmed.startsWith("> ") -> { flush(); out += Md.Quote(trimmed.drop(2)) }
       Regex("^\\s*- \\[[ xX]] ").containsMatchIn(line) -> {
         flush()
         val checked = line.contains("[x]", ignoreCase = true)
@@ -180,7 +203,8 @@ fun MarkdownBody(markdown: String, modifier: Modifier = Modifier) {
           style = when (block.level) {
             1 -> MaterialTheme.typography.titleLarge
             2 -> MaterialTheme.typography.titleMedium
-            else -> MaterialTheme.typography.titleSmall
+            3 -> MaterialTheme.typography.titleSmall
+            else -> MaterialTheme.typography.labelLarge
           },
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colorScheme.onSurface,
@@ -188,13 +212,21 @@ fun MarkdownBody(markdown: String, modifier: Modifier = Modifier) {
         )
         is Md.P -> Text(
           text = inline(block.text, linkColor),
-          style = MaterialTheme.typography.bodyMedium,
+          // Bear's whole differentiator for long-form reading is breathing
+          // room: a taller line height than the platform default body
+          // style, so a multi-paragraph note doesn't read as a dense wall
+          // of text.
+          style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
           color = MaterialTheme.colorScheme.onSurface,
-          modifier = Modifier.padding(vertical = 4.dp),
+          modifier = Modifier.padding(vertical = 6.dp),
         )
-        is Md.Bullet -> Row(modifier = Modifier.padding(vertical = 3.dp)) {
+        is Md.Bullet -> Row(modifier = Modifier.padding(vertical = 4.dp)) {
           Text(block.marker, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(24.dp))
-          Text(inline(block.text, linkColor), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+          Text(
+            inline(block.text, linkColor),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+          )
         }
         is Md.Quote -> Row(modifier = Modifier.padding(vertical = 4.dp)) {
           Surface(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.width(3.dp)) { Spacer(Modifier) }

@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,7 @@ fun EntityRow(
   leadingIcon: ImageVector? = null,
   leadingIconTint: Color = Color.Unspecified,
   leadingCheck: Boolean? = null,
+  leadingMilestone: Boolean? = null,
   onLeadingClick: (() -> Unit)? = null,
   onLongClick: (() -> Unit)? = null,
   strikethrough: Boolean = false,
@@ -73,6 +76,19 @@ fun EntityRow(
       contentAlignment = Alignment.Center,
     ) {
       when {
+        // Asana renders milestones as diamonds specifically so they never
+        // read as "just another task" in a list — same tap-to-toggle
+        // affordance as leadingCheck, distinct shape.
+        leadingMilestone != null -> Box(
+          Modifier
+            .size(14.dp)
+            .rotate(45f)
+            .clip(RoundedCornerShape(3.dp))
+            .then(
+              if (leadingMilestone) Modifier.background(MaterialTheme.colorScheme.primary)
+              else Modifier.border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
+            ),
+        )
         leadingCheck != null -> Icon(
           if (leadingCheck) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
           contentDescription = null,
