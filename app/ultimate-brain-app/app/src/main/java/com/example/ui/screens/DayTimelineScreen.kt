@@ -111,7 +111,13 @@ fun DayTimelineScreen(viewModel: MyDayViewModel, modifier: Modifier = Modifier) 
         }
       }
 
-      val dayTasks = uiState.tasks.filter { !it.isDone && it.due == day.toString() }
+      // For today, this is My Day's own list — every task you pulled in for
+      // today, whether or not it has a due date. Time-blocking a task never
+      // required it to have a due date in the first place; browsing to a
+      // different day (My Day doesn't apply there) falls back to due date.
+      val dayTasks = uiState.tasks.filter {
+        !it.isDone && (if (day == LocalDate.now()) it.isMyDay else it.due == day.toString())
+      }
       val scheduled = dayTasks.mapNotNull { t -> taskTimes(t)?.let { t to it } }
         .filter { it.second.first.toLocalDate() == day }
       val unscheduled = dayTasks.filter { taskTimes(it) == null }

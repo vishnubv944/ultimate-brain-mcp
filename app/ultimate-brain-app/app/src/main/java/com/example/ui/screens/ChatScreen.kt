@@ -375,18 +375,23 @@ private fun TurnBubble(turn: ChatTurn) {
   val isUser = turn.role == "user"
   Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start) {
     Column(
-      // A user turn is a bubble: it should hug its own text (like every
-      // native chat bubble), capped so a long message doesn't run edge to
-      // edge. The assistant turn has no bubble — it's plain text like
-      // ChatGPT/Claude's own chat — so it keeps the full available width
-      // for readable paragraph wrapping instead of being squeezed narrow.
+      // Both sides get a real bubble — the native two-tone messaging
+      // convention (Android Messages, Jetchat), not the bare-floating-text
+      // look of a web AI chat: a user turn hugs its own text and is capped
+      // so a short message doesn't stretch edge to edge; the assistant turn
+      // keeps full width (its markdown reads better unconstrained) but
+      // still gets the same rounded, tonal container so it doesn't look
+      // like unstyled text sitting in space.
       if (isUser) {
         Modifier
           .widthIn(max = 300.dp)
           .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
           .padding(horizontal = 14.dp, vertical = 10.dp)
       } else {
-        Modifier.fillMaxWidth()
+        Modifier
+          .fillMaxWidth()
+          .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(18.dp))
+          .padding(horizontal = 14.dp, vertical = 10.dp)
       },
       horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
     ) {
