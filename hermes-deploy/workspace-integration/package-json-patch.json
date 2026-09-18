@@ -1,0 +1,8 @@
+{
+  "_comment": "Patch applied to hermes-workspace/package.json",
+  "add_dependencies": {
+    "livekit-client": "^2.5.0",
+    "@hugeicons/core-free-icons": "already-present"
+  },
+  "_note_about_hugeicons": "AiVoiceIcon, Microphone01Icon, MicrophoneOff01Icon, TelephoneIcon, Cancel01Icon — verify these exports exist in the installed @hugeicons/core-free-icons version on the Pi. If any are missing, swap to alternative names or import individually from the icon-font CDN."
+}
