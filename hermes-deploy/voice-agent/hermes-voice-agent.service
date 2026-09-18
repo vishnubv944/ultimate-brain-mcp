@@ -1,0 +1,32 @@
+[Unit]
+Description=Hermes voice agent (LiveKit Agents)
+After=network-online.target docker.service
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/vishnubv944/.hermes/voice-agent
+# All credentials and endpoints come from this file (chmod 600, owned by the
+# user running the agent). The .env must define:
+#   DEEPGRAM_API_KEY, CARTESIA_API_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
+#   LIVEKIT_URL, HERMES_GATEWAY_URL, HERMES_GATEWAY_MCP_URL.
+# See voice-mode/install.sh for the template it generates.
+EnvironmentFile=/home/vishnubv944/.hermes/.env
+Environment="HERMES_HOME=/home/vishnubv944/.hermes"
+ExecStart=/home/vishnubv944/.hermes/voice-agent/venv/bin/python agent.py start
+Restart=always
+RestartSec=5
+RestartMaxDelaySec=60
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# Hardening (relaxed for livekit-agents — needs /dev/shm for IPC).
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/vishnubv944/.hermes
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
