@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -3472,8 +3473,6 @@ async def list_databases(
     ``get_database_schema``.
 
     Read-only. The integration must already have access to the database."""
-    import sys
-
     print("[DBG] list_databases enter", file=sys.stderr, flush=True)
     app = _ctx(ctx)
     # As of Notion API 2025-09-03, /search's object filter accepts only
@@ -3523,7 +3522,18 @@ async def list_databases(
         ql = query.lower()
         databases = [d for d in databases if ql in (d.get("title") or "").lower()]
     out = databases[:limit]
-    print(f"[DBG] returning {len(out)} entries; first={out[0]['id'] if out else 'none'}", file=sys.stderr, flush=True)
+    print(
+        f"[DBG] returning {len(out)} entries; first={out[0]['id'] if out else 'none'}",
+        file=sys.stderr,
+        flush=True,
+    )
+    # Verify it's JSON-serializable before returning
+    try:
+        json.dumps(out)
+        print("[DBG] json.dumps OK", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"[DBG] json.dumps FAILED: {e!r}", file=sys.stderr, flush=True)
+        return _error(f"Internal serialization failure: {e!r}")
     return out
 
 
