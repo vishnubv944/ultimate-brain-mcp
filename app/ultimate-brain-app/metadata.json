@@ -1,6 +1,0 @@
-{
-  "name": "Ultimate Brain",
-  "description": "Productivity and life operating system client for Notion featuring My Day planning, execution, and wrap-up rituals.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
