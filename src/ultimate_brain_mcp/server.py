@@ -1,4 +1,4 @@
-"""FastMCP server with 30 tools for Thomas Frank's Ultimate Brain."""
+"""FastMCP server with 48 tools for Thomas Frank's Ultimate Brain."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ from .config import (
     GOAL_STATUSES,
     NOTE_TYPES,
     NOTES_TYPE_PROP,
+    PIPELINE_STATUSES,
     PROJECT_STATUSES,
+    RECUR_UNITS,
     TAG_TYPES,
     TASK_PRIORITIES,
     TASK_STATUSES,
@@ -91,6 +93,25 @@ class MilestonesSchema:
     has_target_deadline: bool = False
 
 
+@dataclass(frozen=True)
+class PeopleSchema:
+    """Live introspection of the People data source. Pipeline Status and
+    Relationship options are used for input validation on create_person,
+    update_person, and search_people. The presence flags let create_person
+    silently skip properties a workspace has removed (instead of 400-ing on
+    every create). Empty / default values mean discovery failed — writers
+    degrade to a Name-only / status-unvalidated path.
+    """
+
+    pipeline_status_options: tuple[str, ...] = ()
+    relationship_options: tuple[str, ...] = ()
+    has_birthday: bool = False
+    has_check_in: bool = False
+    has_last_check_in: bool = False
+    has_email: bool = False
+    has_phone: bool = False
+
+
 @dataclass
 class AppContext:
     client: NotionClient
@@ -109,6 +130,10 @@ class AppContext:
     # as tasks_schema. Empty/default means Milestones is either unconfigured
     # or only has Name — search/create/update_milestone degrade accordingly.
     milestones_schema: MilestonesSchema = field(default_factory=MilestonesSchema)
+    # Live People property schema. Empty/default means People is either
+    # unconfigured or discovery failed — search/create/update_person degrade
+    # to a Name-only / no-validation path.
+    people_schema: PeopleSchema = field(default_factory=PeopleSchema)
     # Whether the page-markdown endpoints (API 2026-03-11) are available.
     # None = unknown (not probed yet); set True on first success, False on first
     # version-unavailable error. Once True, markdown errors are surfaced rather
@@ -153,6 +178,15 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         )
         milestones_schema = MilestonesSchema()
     try:
+        people_schema = await _discover_people_schema(client, config)
+    except Exception as e:  # noqa: BLE001 — startup must not crash on discovery
+        print(
+            f"[ultimate-brain-mcp] People schema discovery crashed ({e!r}); "
+            f"search/create/update_person will only touch Name for this session.",
+            file=sys.stderr,
+        )
+        people_schema = PeopleSchema()
+    try:
         yield AppContext(
             client=client,
             config=config,
@@ -160,6 +194,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
             note_types_source=note_types_source,
             tasks_schema=tasks_schema,
             milestones_schema=milestones_schema,
+            people_schema=people_schema,
         )
     finally:
         await client.close()
@@ -263,6 +298,56 @@ async def _discover_milestones_schema(client: NotionClient, config: UBConfig) ->
     )
 
 
+async def _discover_people_schema(client: NotionClient, config: UBConfig) -> PeopleSchema:
+    """Introspect the People data source (if configured) for Pipeline Status
+    options, Relationship options, and the presence of optional date /
+    contact properties (Birthday, Check-In, Last Check-In, Email, Phone).
+
+    The live options list is what callers will validate pipeline_status
+    against; if Notion rejects a value, that's a schema drift we don't try
+    to paper over here. Presence flags let create_person / update_person
+    silently skip properties a workspace has deleted — important because
+    People is more workspace-customised than Tasks.
+
+    Falls back to an empty ``PeopleSchema()`` (Name-only) if People isn't
+    configured or discovery fails for any reason.
+    """
+    ds_id = config.secondary_ds.get("People")
+    if not ds_id:
+        return PeopleSchema()
+    try:
+        schema = await client.get_data_source(ds_id)
+    except Exception as e:  # noqa: BLE001 — discovery is best-effort
+        print(
+            f"[ultimate-brain-mcp] People schema fetch failed ({e!r}); "
+            f"falling back to Name-only.",
+            file=sys.stderr,
+        )
+        return PeopleSchema()
+
+    props = schema.get("properties", {})
+    pipeline_meta = extract_property_metadata(schema, "Pipeline Status")
+    relationship_meta = extract_property_metadata(schema, "Relationship")
+
+    # Fall back to canonical pipeline_status options if the live discovery
+    # found nothing — keeps validation tight when the schema is partially
+    # customisable.
+    pipeline_options = pipeline_meta.get("options") or list(PIPELINE_STATUSES)
+
+    def _has(name: str) -> bool:
+        return name in props
+
+    return PeopleSchema(
+        pipeline_status_options=tuple(pipeline_options),
+        relationship_options=tuple(relationship_meta.get("options", []) or ()),
+        has_birthday=_has("Birthday"),
+        has_check_in=_has("Check-In"),
+        has_last_check_in=_has("Last Check-In"),
+        has_email=_has("Email"),
+        has_phone=_has("Phone"),
+    )
+
+
 mcp = FastMCP(
     "Ultimate Brain",
     instructions=(
@@ -315,6 +400,26 @@ def _validate_note_type(app: AppContext, note_type: str | None) -> dict | None:
     return _error(
         f"Invalid note_type {note_type!r}. Valid options "
         f"(source: {app.note_types_source}): {app.note_types}"
+    )
+
+
+def _validate_pipeline_status(app: AppContext, value: str | None) -> dict | None:
+    """Reject `pipeline_status` not in the live discovered options.
+
+    Mirrors `_validate_note_type`'s case-sensitive exact-match policy. Falls
+    through (no validation) when the live options list is empty — discovery
+    failed and we don't want to block writes for a session that started
+    without introspection.
+    """
+    if value is None:
+        return None
+    if not app.people_schema.pipeline_status_options:
+        return None
+    if value in app.people_schema.pipeline_status_options:
+        return None
+    return _error(
+        f"Invalid pipeline_status {value!r}. Valid options: "
+        f"{list(app.people_schema.pipeline_status_options)}"
     )
 
 
@@ -449,6 +554,14 @@ def _prop_number(value: float) -> dict:
 
 def _prop_url(url: str) -> dict:
     return {"url": url}
+
+
+def _prop_email(value: str) -> dict:
+    return {"email": value}
+
+
+def _prop_phone_number(value: str) -> dict:
+    return {"phone_number": value}
 
 
 def _prop_relation(ids: list[str]) -> dict:
@@ -742,6 +855,38 @@ async def create_task(
             )
         ),
     ] = None,
+    recur_interval: Annotated[
+        int | None,
+        Field(description="Recur Interval (number). Pairs with recur_unit."),
+    ] = None,
+    recur_unit: Annotated[
+        str | None,
+        Field(
+            description=(
+                f"Recur Unit (select). Canonical options: {', '.join(RECUR_UNITS)}. "
+                "Custom workspace options also accepted — Notion returns 400 on bad values."
+            )
+        ),
+    ] = None,
+    days: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "Days (multi_select of weekday short names, e.g. ['Mon', 'Wed']). "
+                "Used together with recur_unit='Week(s)' or similar."
+            )
+        ),
+    ] = None,
+    snooze_until: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Snooze Until (YYYY-MM-DD). Shifts Due to that date and sets the "
+                "Snooze Until property. If both `due` and `snooze_until` are passed, "
+                "snooze_until wins (last write)."
+            )
+        ),
+    ] = None,
     content: Annotated[
         str | None,
         Field(
@@ -756,7 +901,8 @@ async def create_task(
 ) -> dict:
     """Create a new task. Only name is required. Use search_projects to find project IDs.
 
-    For batches of 3+ task creations or updates, prefer bulk_update_tasks (updates only).
+    For batches of 3+ task creations or updates, prefer bulk_update_tasks (updates only)
+    or bulk_create_tasks (creates only).
     Pure creates still go through this tool one at a time.
     """
     app = _ctx(ctx)
@@ -781,6 +927,15 @@ async def create_task(
         props["Tag"] = _prop_relation(tag_ids)
     if enforce_schedule is not None:
         props["Enforce Schedule"] = _prop_checkbox(enforce_schedule)
+    if recur_interval is not None:
+        props["Recur Interval"] = _prop_number(recur_interval)
+    if recur_unit is not None:
+        props["Recur Unit"] = _prop_select(recur_unit)
+    if days:
+        props["Days"] = _prop_multi_select(days)
+    if snooze_until:
+        props["Due"] = _prop_date(snooze_until)
+        props["Snooze Until"] = _prop_date(snooze_until)
     if location is not None:
         payload, warning = _build_location_payload(app.tasks_schema, location)
         if payload is not None and app.tasks_schema.location_property_name:
@@ -876,6 +1031,38 @@ async def update_task(
             )
         ),
     ] = None,
+    recur_interval: Annotated[
+        int | None,
+        Field(description="Recur Interval (number). Pairs with recur_unit."),
+    ] = None,
+    recur_unit: Annotated[
+        str | None,
+        Field(
+            description=(
+                f"Recur Unit (select). Canonical options: {', '.join(RECUR_UNITS)}. "
+                "Custom workspace options also accepted — Notion returns 400 on bad values."
+            )
+        ),
+    ] = None,
+    days: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "Days (multi_select of weekday short names, e.g. ['Mon', 'Wed']). "
+                "Used together with recur_unit='Week(s)' or similar."
+            )
+        ),
+    ] = None,
+    snooze_until: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Snooze Until (YYYY-MM-DD). Shifts Due to that date and sets the "
+                "Snooze Until property. If both `due` and `snooze_until` are passed, "
+                "snooze_until wins (last write)."
+            )
+        ),
+    ] = None,
     ctx: Context = None,
 ) -> dict:
     """Update any task properties. Only provided fields are changed.
@@ -907,6 +1094,15 @@ async def update_task(
         props["Tag"] = _prop_relation(tag_ids)
     if enforce_schedule is not None:
         props["Enforce Schedule"] = _prop_checkbox(enforce_schedule)
+    if recur_interval is not None:
+        props["Recur Interval"] = _prop_number(recur_interval)
+    if recur_unit is not None:
+        props["Recur Unit"] = _prop_select(recur_unit)
+    if days is not None:
+        props["Days"] = _prop_multi_select(days)
+    if snooze_until is not None:
+        props["Due"] = _prop_date(snooze_until)
+        props["Snooze Until"] = _prop_date(snooze_until)
     if location is not None:
         payload, warning = _build_location_payload(app.tasks_schema, location)
         if payload is not None and app.tasks_schema.location_property_name:
@@ -957,7 +1153,11 @@ async def complete_task(
             )
             props: dict = {"Status": _prop_status("To Do")}
             if new_due:
-                props["Due"] = _prop_date(new_due)
+                # Preserve the original time-block (due_end) so a recurring routine
+                # keeps its slot length when it advances. task.get("due_end") is
+                # absent when the original Due was a single date, so _prop_date
+                # produces the same shape as before.
+                props["Due"] = _prop_date(new_due, task.get("due_end"))
             props["My Day"] = _prop_checkbox(False)
             page = await app.client.update_page(task_id, props)
             result = format_task(page, location_property_name=loc_name)
@@ -2213,10 +2413,20 @@ async def daily_review_snapshot(
         due_tomorrow           — non-Done tasks due exactly tomorrow
         on_my_day              — non-Done tasks with My Day flag set (any due date)
         inbox                  — non-Done tasks with status To Do, no project, no due
+        routine_blocks         — non-Done tasks with Recur Unit set and Due in
+                                 [today, today + 7 days]. Each carries its
+                                 own due/due_end (time block) plus, when present,
+                                 the parent's already-planned sub-tasks for the
+                                 same cycle. Backs the per-block planning model
+                                 in docs/hermes/daily-plan-phase.md.
       outstanding      — deduplicated union of overdue_or_due_today ∪ on_my_day
       lookups:
         projects       — {id → {name, status}} for active projects (Doing + Ongoing)
         area_tags      — {id → {name}} for tags with type=Area
+        routine_blocks — parent_id → {name, due, due_end, planned_subtasks: [...]}
+                        — same id as the buckets.routine_blocks parent task.
+                        Lets the planning pass call back with sub-task ids without
+                        resolving them from the page id alone.
       task_schema:
         has_location_property      — bool
         location_property_name     — string or null
@@ -2263,6 +2473,20 @@ async def daily_review_snapshot(
     }
     area_tags_filter = {"property": "Type", "status": {"equals": "Area"}}
 
+    # Routine blocks: recurring tasks with a Next Due in the next week. The
+    # date window is wide enough to capture weekly/monthly routines that land
+    # within planning horizon without hauling in far-future instances; the
+    # actual planning pass filters further by exact day.
+    horizon_end = (now_dt.date() + timedelta(days=7)).isoformat()
+    routine_blocks_filter = {
+        "and": [
+            not_done,
+            {"property": "Recur Unit", "select": {"is_not_empty": True}},
+            {"property": "Due", "date": {"on_or_after": today}},
+            {"property": "Due", "date": {"on_or_before": horizon_end}},
+        ]
+    }
+
     try:
         (
             completed_pages,
@@ -2272,6 +2496,7 @@ async def daily_review_snapshot(
             inbox_pages,
             project_pages,
             area_tag_pages,
+            routine_pages,
         ) = await asyncio.gather(
             app.client.query_all(app.config.tasks_ds_id, filter=completed_today_filter),
             app.client.query_all(app.config.tasks_ds_id, filter=overdue_or_today_filter),
@@ -2280,6 +2505,7 @@ async def daily_review_snapshot(
             app.client.query_all(app.config.tasks_ds_id, filter=inbox_filter),
             app.client.query_all(app.config.projects_ds_id, filter=active_projects_filter),
             app.client.query_all(app.config.tags_ds_id, filter=area_tags_filter),
+            app.client.query_all(app.config.tasks_ds_id, filter=routine_blocks_filter),
         )
     except NotionAPIError as e:
         return _handle_api_error(e)
@@ -2321,6 +2547,65 @@ async def daily_review_snapshot(
     due_tomorrow, t_tomorrow = _fmt_bucket(tomorrow_pages, bucket_cap)
     on_my_day, t_my_day = _fmt_bucket(my_day_pages, bucket_cap)
     inbox, t_inbox = _fmt_bucket(inbox_pages, inbox_limit)
+    routine_blocks, t_routine = _fmt_bucket(routine_pages, bucket_cap)
+
+    # Per-routine-block sub-task lookup. Fetch the children of each routine
+    # block from the SAME Tasks DB via the Parent Task self-relation, scoped
+    # to non-Done tasks (anything still planned for the upcoming cycle). Used
+    # by the 9 PM planning pass to surface "already planned for this block"
+    # before drafting additions, per docs/hermes/daily-plan-phase.md.
+    routine_lookups: dict[str, dict] = {}
+    if routine_pages:
+        try:
+            # Fan out: for each routine, fetch its non-Done sub-tasks. Bounded
+            # concurrency so a workspace with 50 routine blocks doesn't fan
+            # out 50 simultaneous Notion calls (the client's rate limiter
+            # would serialize them, but pending-coroutine churn is wasteful).
+            sem = asyncio.Semaphore(8)
+
+            async def _gather_subs(routine_page: dict) -> tuple[str, list[dict]]:
+                routine_id = routine_page.get("id", "")
+                if not routine_id:
+                    return "", []
+                async with sem:
+                    try:
+                        sub_pages = await app.client.query_all(
+                            app.config.tasks_ds_id,
+                            filter={
+                                "and": [
+                                    {
+                                        "property": "Parent Task",
+                                        "relation": {"contains": routine_id},
+                                    },
+                                    not_done,
+                                ]
+                            },
+                        )
+                    except NotionAPIError:
+                        return routine_id, []
+                return routine_id, [
+                    format_task(
+                        p,
+                        project_lookup=project_lookup,
+                        tag_lookup=tag_lookup,
+                        location_property_name=loc_name,
+                    )
+                    for p in sub_pages
+                ]
+
+            sub_results = await asyncio.gather(
+                *(_gather_subs(p) for p in routine_pages if p.get("id"))
+            )
+            for routine_id, subs in sub_results:
+                if routine_id:
+                    routine_lookups[routine_id] = {
+                        "planned_subtasks": subs,
+                    }
+        except NotionAPIError:
+            # Sub-task fetch is optional; core buckets already succeeded.
+            routine_lookups = {}
+    else:
+        routine_lookups = {}
 
     # Outstanding = dedup union of overdue_or_due_today ∪ on_my_day, preserving
     # the overdue-bucket ordering first.
@@ -2343,11 +2628,13 @@ async def daily_review_snapshot(
             "due_tomorrow": due_tomorrow,
             "on_my_day": on_my_day,
             "inbox": inbox,
+            "routine_blocks": routine_blocks,
         },
         "outstanding": outstanding,
         "lookups": {
             "projects": project_lookup,
             "area_tags": tag_lookup,
+            "routine_blocks": routine_lookups,
         },
         "task_schema": {
             "has_location_property": schema.has_location_property,
@@ -2362,6 +2649,7 @@ async def daily_review_snapshot(
             "due_tomorrow": t_tomorrow,
             "on_my_day": t_my_day,
             "inbox": t_inbox,
+            "routine_blocks": t_routine,
         },
     }
 
@@ -2501,6 +2789,22 @@ class BulkTaskUpdate(BaseModel):
     enforce_schedule: bool | None = Field(
         default=None, description="Sets the Enforce Schedule checkbox for recurring tasks."
     )
+    recur_interval: int | None = Field(
+        default=None, description="Recur Interval (number). Pairs with recur_unit."
+    )
+    recur_unit: str | None = Field(
+        default=None,
+        description=f"Recur Unit (select). Canonical options: {', '.join(RECUR_UNITS)}.",
+    )
+    days: list[str] | None = Field(
+        default=None,
+        description="Days (multi_select of weekday short names, e.g. ['Mon', 'Wed']).",
+    )
+    snooze_until: str | None = Field(
+        default=None,
+        description="Snooze Until (YYYY-MM-DD). Shifts Due and sets Snooze Until. "
+        "If both due and snooze_until are set, snooze_until wins.",
+    )
 
 
 @mcp.tool(
@@ -2565,6 +2869,15 @@ async def bulk_update_tasks(
                 props["Tag"] = _prop_relation(update.tag_ids)
             if update.enforce_schedule is not None:
                 props["Enforce Schedule"] = _prop_checkbox(update.enforce_schedule)
+            if update.recur_interval is not None:
+                props["Recur Interval"] = _prop_number(update.recur_interval)
+            if update.recur_unit is not None:
+                props["Recur Unit"] = _prop_select(update.recur_unit)
+            if update.days is not None:
+                props["Days"] = _prop_multi_select(update.days)
+            if update.snooze_until is not None:
+                props["Due"] = _prop_date(update.snooze_until)
+                props["Snooze Until"] = _prop_date(update.snooze_until)
             if update.location is not None:
                 payload, warning = _build_location_payload(app.tasks_schema, update.location)
                 if payload is not None and app.tasks_schema.location_property_name:
@@ -2601,6 +2914,166 @@ async def bulk_update_tasks(
                 }
 
     results = await asyncio.gather(*(_apply_one(i, u) for i, u in enumerate(updates)))
+    ok_count = sum(1 for r in results if r.get("ok"))
+    failed_count = len(results) - ok_count
+    return {
+        "results": results,
+        "summary": {"ok": ok_count, "failed": failed_count, "total": len(results)},
+    }
+
+
+class BulkTaskCreate(BaseModel):
+    """One row in a bulk_create_tasks call. Mirrors create_task parameters."""
+
+    name: str = Field(description="Task name.")
+    status: Literal["To Do", "Doing", "Done"] | None = Field(
+        default=None, description="Status. Defaults to To Do."
+    )
+    due: str | None = Field(
+        default=None,
+        description=(
+            "Due date, YYYY-MM-DD, or a full ISO 8601 datetime for time-blocking, paired with due_end."
+        ),
+    )
+    due_end: str | None = Field(
+        default=None,
+        description="End of the time block, ISO 8601 datetime. Only meaningful with due set.",
+    )
+    priority: Literal["Low", "Medium", "High"] | None = Field(
+        default=None, description="Priority."
+    )
+    project_id: str | None = Field(default=None, description="Project page ID to link this task to.")
+    labels: list[str] | None = Field(default=None, description="Label names (multi-select).")
+    my_day: bool | None = Field(default=None, description="Add to My Day.")
+    parent_task_id: str | None = Field(
+        default=None, description="Parent task page ID (for sub-tasks)."
+    )
+    tag_ids: list[str] | None = Field(
+        default=None, description="Tag page IDs to link via the Tag relation."
+    )
+    location: str | None = Field(
+        default=None,
+        description="Sets the Tasks Location property. Auto-detects select / multi_select / status.",
+    )
+    enforce_schedule: bool | None = Field(
+        default=None, description="Sets the Enforce Schedule checkbox for recurring tasks."
+    )
+    recur_interval: int | None = Field(
+        default=None, description="Recur Interval (number). Pairs with recur_unit."
+    )
+    recur_unit: str | None = Field(
+        default=None,
+        description=f"Recur Unit (select). Canonical options: {', '.join(RECUR_UNITS)}.",
+    )
+    days: list[str] | None = Field(
+        default=None,
+        description="Days (multi_select of weekday short names, e.g. ['Mon', 'Wed']).",
+    )
+    snooze_until: str | None = Field(
+        default=None,
+        description="Snooze Until (YYYY-MM-DD). Shifts Due and sets Snooze Until. "
+        "If both due and snooze_until are set, snooze_until wins.",
+    )
+    content: str | None = Field(
+        default=None,
+        description="Page body content as markdown (same syntax as create_task).",
+    )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def bulk_create_tasks(
+    creates: Annotated[
+        list[BulkTaskCreate],
+        Field(description="List of per-task creates. Each follows the BulkTaskCreate shape."),
+    ],
+    ctx: Context = None,
+) -> dict:
+    """Create multiple tasks in a single call. Each row follows the same shape as
+    create_task. Concurrency-limited to _BULK_UPDATE_CONCURRENCY; never raises on
+    a single row failure.
+
+    Returns:
+      results — list of one entry per input create, in order:
+        {row_index, ok: true,  task: {formatted task dict}}     on success
+        {row_index, ok: false, error: 'human-readable reason'}  on failure
+      summary — {ok: N, failed: N, total: N}
+
+    Note: returns row_index (not task_id) because creates have no pre-existing ID.
+    Failures are per-row and self-describing — the whole call never raises.
+    """
+    app = _ctx(ctx)
+
+    if not creates:
+        return {
+            "results": [],
+            "summary": {"ok": 0, "failed": 0, "total": 0},
+        }
+
+    sem = asyncio.Semaphore(_BULK_UPDATE_CONCURRENCY)
+
+    async def _create_one(idx: int, create: BulkTaskCreate) -> dict:
+        async with sem:
+            props: dict = {"Name": _prop_title(create.name)}
+            warnings: list[str] = []
+
+            if create.status:
+                props["Status"] = _prop_status(create.status)
+            if create.due:
+                props["Due"] = _prop_date(create.due, create.due_end)
+            if create.priority:
+                props["Priority"] = _prop_status(create.priority)
+            if create.project_id:
+                props["Project"] = _prop_relation([create.project_id])
+            if create.labels:
+                props["Labels"] = _prop_multi_select(create.labels)
+            if create.my_day:
+                props["My Day"] = _prop_checkbox(True)
+            if create.parent_task_id:
+                props["Parent Task"] = _prop_relation([create.parent_task_id])
+            if create.tag_ids:
+                props["Tag"] = _prop_relation(create.tag_ids)
+            if create.enforce_schedule is not None:
+                props["Enforce Schedule"] = _prop_checkbox(create.enforce_schedule)
+            if create.recur_interval is not None:
+                props["Recur Interval"] = _prop_number(create.recur_interval)
+            if create.recur_unit is not None:
+                props["Recur Unit"] = _prop_select(create.recur_unit)
+            if create.days:
+                props["Days"] = _prop_multi_select(create.days)
+            if create.snooze_until:
+                props["Due"] = _prop_date(create.snooze_until)
+                props["Snooze Until"] = _prop_date(create.snooze_until)
+            if create.location is not None:
+                payload, warning = _build_location_payload(app.tasks_schema, create.location)
+                if payload is not None and app.tasks_schema.location_property_name:
+                    props[app.tasks_schema.location_property_name] = payload
+                if warning:
+                    warnings.append(warning)
+
+            children = text_to_blocks(create.content) if create.content else None
+
+            try:
+                page = await app.client.create_page(
+                    app.config.tasks_ds_id, props, children=children
+                )
+                row: dict = {
+                    "row_index": idx,
+                    "ok": True,
+                    "task": format_task(
+                        page,
+                        location_property_name=app.tasks_schema.location_property_name,
+                    ),
+                }
+                if warnings:
+                    row["_warnings"] = warnings
+                return row
+            except NotionAPIError as e:
+                err = _handle_api_error(e, "Check that project/parent IDs are valid.")
+                return {"row_index": idx, "ok": False, "error": err.get("error", str(e))}
+
+    results = await asyncio.gather(*(_create_one(i, c) for i, c in enumerate(creates)))
     ok_count = sum(1 for r in results if r.get("ok"))
     failed_count = len(results) - ok_count
     return {
@@ -3066,3 +3539,640 @@ def _coerce_property(ptype: str, value) -> dict:
         return _prop_relation([str(value)])
     else:
         raise ValueError(f"Unsupported property type: {ptype}")
+
+
+# ---------------------------------------------------------------------------
+# People tools (5) — Tier 1 of the Hermes extension
+# ---------------------------------------------------------------------------
+#
+# People is a workspace-customised secondary DB with a stable core property
+# surface (Full Name title; Pipeline Status status; Surname / Title / Company /
+# Location rich_text; Relationship / Interests multi_select; Birthday /
+# Check-In / Last Check-In dates; Email / Phone email/phone_number; Website /
+# LinkedIn / Twitter / Instagram url; Tags relation) but property names and
+# option sets vary. Tools here introspect the live schema once (see
+# AppContext.people_schema) and silently skip fields that aren't present
+# rather than 400-ing on every optional field that the workspace trimmed.
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+async def search_people(
+    query: Annotated[
+        str | None, Field(description="Text to search for in full names.")
+    ] = None,
+    pipeline_status: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Filter by Pipeline Status (e.g. 'Prospect', 'Contacted'). "
+                f"Canonical options: {', '.join(PIPELINE_STATUSES)}."
+            )
+        ),
+    ] = None,
+    relationship: Annotated[
+        str | None,
+        Field(description="Filter by Relationship (multi_select contains)."),
+    ] = None,
+    tag_id: Annotated[
+        str | None, Field(description="Filter by linked Tag (relation contains).")
+    ] = None,
+    sort_by: Annotated[
+        Literal["name", "last_check_in", "check_in"],
+        Field(description="Sort field. Defaults to 'name' ascending."),
+    ] = "name",
+    limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 50,
+    ctx: Context = None,
+) -> list[dict] | dict:
+    """Search People by name, Pipeline Status, Relationship, or linked tag.
+    Sort by name (default), last check-in date, or next check-in date.
+    Use get_person_detail for a full view including related tasks / projects /
+    recent notes. People database must be configured (UB_PEOPLE_DS_ID)."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "People")
+    if not ds_id:
+        return _error("People database not configured. Set UB_PEOPLE_DS_ID in .env.")
+
+    if (err := _validate_pipeline_status(app, pipeline_status)) is not None:
+        return err
+
+    filters: list[dict] = []
+    if query:
+        filters.append({"property": "Full Name", "title": {"contains": query}})
+    if pipeline_status:
+        filters.append(
+            {"property": "Pipeline Status", "status": {"equals": pipeline_status}}
+        )
+    if relationship:
+        filters.append(
+            {"property": "Relationship", "multi_select": {"contains": relationship}}
+        )
+    if tag_id:
+        filters.append({"property": "Tags", "relation": {"contains": tag_id}})
+
+    filter_obj: dict | None = None
+    if len(filters) == 1:
+        filter_obj = filters[0]
+    elif len(filters) > 1:
+        filter_obj = {"and": filters}
+
+    sort_prop = {"name": "Full Name", "last_check_in": "Last Check-In", "check_in": "Check-In"}[sort_by]
+    sorts = [{"property": sort_prop, "direction": "ascending"}]
+
+    try:
+        pages = await app.client.query_all(ds_id, filter=filter_obj, sorts=sorts)
+        return [format_generic_page(p) for p in pages[:limit]]
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+async def get_person_detail(
+    person_id: Annotated[str, Field(description="Person page ID.")],
+    resolve_relations: Annotated[
+        bool,
+        Field(
+            description=(
+                "If any relation on the person is truncated at Notion's 25-item "
+                "inline cap (see _truncated_relations), fetch the full list via "
+                "an extra paginated API call instead of leaving it flagged."
+            )
+        ),
+    ] = False,
+    ctx: Context = None,
+) -> dict:
+    """Get a consolidated person view: properties, related tasks, related
+    projects, and recent notes. Returns ``person`` plus ``related_tasks``,
+    ``related_projects``, and ``recent_notes`` lists. The inverse-relation
+    property names used to find tasks/projects/notes (``Person`` singular on
+    Tasks/Projects, ``People`` plural on Notes) are workspace-specific — if
+    any of those three lists returns empty for a workspace that does have
+    related items, the data source schema needs to be checked and the
+    filter property name adjusted."""
+    app = _ctx(ctx)
+    try:
+        # Parallel: get person, related tasks, related projects, recent notes.
+        # The relation property names are best-guess standard (UB v3.0 uses
+        # 'Person' on Tasks/Projects singular and 'People' on Notes plural);
+        # if any returns empty in a workspace that actually has related items,
+        # inspect the data source schema and adjust the property name.
+        person_fut = app.client.get_page(person_id)
+        tasks_fut = app.client.query_all(
+            app.config.tasks_ds_id,
+            filter={"property": "Person", "relation": {"contains": person_id}},
+        )
+        projects_fut = app.client.query_all(
+            app.config.projects_ds_id,
+            filter={"property": "Person", "relation": {"contains": person_id}},
+        )
+        notes_fut = app.client.query_all(
+            app.config.notes_ds_id,
+            filter={"property": "People", "relation": {"contains": person_id}},
+            sorts=[{"property": "Note Date", "direction": "descending"}],
+        )
+        person_page, task_pages, project_pages, note_pages = await asyncio.gather(
+            person_fut, tasks_fut, projects_fut, notes_fut
+        )
+
+        person = format_generic_page(person_page)
+        if resolve_relations:
+            await _resolve_truncated_relations(app, person_page, person)
+        loc_name = app.tasks_schema.location_property_name
+        tasks = [format_task(t, location_property_name=loc_name) for t in task_pages]
+        projects = [format_project(p) for p in project_pages]
+        notes = [format_note(n) for n in note_pages[:10]]
+
+        return {
+            "person": person,
+            "related_tasks": tasks,
+            "related_projects": projects,
+            "recent_notes": notes,
+        }
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Use search_people to find valid person IDs.")
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def create_person(
+    name: Annotated[str, Field(description="Full name (the title property).")],
+    surname: Annotated[
+        str | None, Field(description="Surname (rich_text).")
+    ] = None,
+    title: Annotated[
+        str | None, Field(description="Job title (rich_text).")
+    ] = None,
+    company: Annotated[
+        str | None, Field(description="Company (rich_text).")
+    ] = None,
+    location: Annotated[
+        str | None, Field(description="Location (rich_text).")
+    ] = None,
+    pipeline_status: Annotated[
+        str | None,
+        Field(
+            description=(
+                f"Pipeline Status (status). Canonical options: {', '.join(PIPELINE_STATUSES)}. "
+                "Live-discovered options validated server-side; values not in the workspace's "
+                "list return a 400 from Notion."
+            )
+        ),
+    ] = None,
+    relationship: Annotated[
+        list[str] | None,
+        Field(description="Relationship tags (multi_select, replaces existing)."),
+    ] = None,
+    interests: Annotated[
+        list[str] | None,
+        Field(description="Interests (multi_select, replaces existing)."),
+    ] = None,
+    birthday: Annotated[
+        str | None, Field(description="Birthday (YYYY-MM-DD).")
+    ] = None,
+    email: Annotated[
+        str | None, Field(description="Email (email type).")
+    ] = None,
+    phone: Annotated[
+        str | None, Field(description="Phone number (phone_number type).")
+    ] = None,
+    website: Annotated[
+        str | None, Field(description="Website URL.")
+    ] = None,
+    linkedin: Annotated[
+        str | None, Field(description="LinkedIn URL.")
+    ] = None,
+    twitter: Annotated[
+        str | None, Field(description="Twitter / X URL.")
+    ] = None,
+    instagram: Annotated[
+        str | None, Field(description="Instagram URL.")
+    ] = None,
+    tag_ids: Annotated[
+        list[str] | None, Field(description="Tag page IDs to link via Tags relation.")
+    ] = None,
+    content: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Page body content as markdown. Supports: # headings, - bullets, "
+                "1. numbered lists, - [ ] to-dos, ```code blocks```, > quotes, --- "
+                "dividers, and plain paragraphs."
+            )
+        ),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Create a new Person. Use search_people for lookups, search_tags for tag IDs.
+    Properties the workspace doesn't carry are silently skipped (see _warnings).
+    Surfaces `possible_duplicate` when an exact-name match exists; that warning
+    never blocks the create."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "People")
+    if not ds_id:
+        return _error("People database not configured. Set UB_PEOPLE_DS_ID in .env.")
+
+    if (err := _validate_pipeline_status(app, pipeline_status)) is not None:
+        return err
+
+    schema = app.people_schema
+    props: dict = {"Full Name": _prop_title(name)}
+    warnings: list[str] = []
+
+    if surname:
+        props["Surname"] = _prop_rich_text(surname)
+    if title:
+        props["Title"] = _prop_rich_text(title)
+    if company:
+        props["Company"] = _prop_rich_text(company)
+    if location:
+        props["Location"] = _prop_rich_text(location)
+    if pipeline_status:
+        props["Pipeline Status"] = _prop_status(pipeline_status)
+    if relationship:
+        props["Relationship"] = _prop_multi_select(relationship)
+    if interests:
+        props["Interests"] = _prop_multi_select(interests)
+    if birthday:
+        if schema.has_birthday:
+            props["Birthday"] = _prop_date(birthday)
+        else:
+            warnings.append("birthday ignored — no Birthday property found.")
+    if email:
+        if schema.has_email:
+            props["Email"] = _prop_email(email)
+        else:
+            warnings.append("email ignored — no Email property found.")
+    if phone:
+        if schema.has_phone:
+            props["Phone"] = _prop_phone_number(phone)
+        else:
+            warnings.append("phone ignored — no Phone property found.")
+    if website:
+        props["Website"] = _prop_url(website)
+    if linkedin:
+        props["LinkedIn"] = _prop_url(linkedin)
+    if twitter:
+        props["Twitter"] = _prop_url(twitter)
+    if instagram:
+        props["Instagram"] = _prop_url(instagram)
+    if tag_ids:
+        props["Tags"] = _prop_relation(tag_ids)
+
+    children = text_to_blocks(content) if content else None
+    possible_duplicate = await _find_possible_duplicate(
+        app, ds_id, name, format_generic_page
+    )
+
+    try:
+        page = await app.client.create_page(ds_id, props, children=children)
+        result = format_generic_page(page)
+        if warnings:
+            result["_warning"] = " ".join(warnings)
+        if possible_duplicate:
+            result["possible_duplicate"] = possible_duplicate
+        return result
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
+)
+async def update_person(
+    person_id: Annotated[str, Field(description="Person page ID to update.")],
+    name: Annotated[
+        str | None, Field(description="New full name (title).")
+    ] = None,
+    surname: Annotated[str | None, Field(description="New Surname.")] = None,
+    title: Annotated[str | None, Field(description="New job Title.")] = None,
+    company: Annotated[str | None, Field(description="New Company.")] = None,
+    location: Annotated[str | None, Field(description="New Location.")] = None,
+    pipeline_status: Annotated[
+        str | None, Field(description="New Pipeline Status (status, validated).")
+    ] = None,
+    relationship: Annotated[
+        list[str] | None,
+        Field(description="New Relationship tags (multi_select, replaces existing)."),
+    ] = None,
+    interests: Annotated[
+        list[str] | None,
+        Field(description="New Interests (multi_select, replaces existing)."),
+    ] = None,
+    birthday: Annotated[
+        str | None, Field(description="New Birthday (YYYY-MM-DD).")
+    ] = None,
+    email: Annotated[str | None, Field(description="New Email.")] = None,
+    phone: Annotated[str | None, Field(description="New Phone number.")] = None,
+    website: Annotated[str | None, Field(description="New Website URL.")] = None,
+    linkedin: Annotated[str | None, Field(description="New LinkedIn URL.")] = None,
+    twitter: Annotated[str | None, Field(description="New Twitter URL.")] = None,
+    instagram: Annotated[str | None, Field(description="New Instagram URL.")] = None,
+    tag_ids: Annotated[
+        list[str] | None,
+        Field(description="New Tag relation IDs (replaces existing)."),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Update any Person properties. Only provided fields are changed.
+    Use search_people to find person IDs. Properties the workspace doesn't
+    carry are silently skipped (see _warnings)."""
+    app = _ctx(ctx)
+    if (err := _validate_pipeline_status(app, pipeline_status)) is not None:
+        return err
+
+    schema = app.people_schema
+    props: dict = {}
+    warnings: list[str] = []
+
+    if name is not None:
+        props["Full Name"] = _prop_title(name)
+    if surname is not None:
+        props["Surname"] = _prop_rich_text(surname)
+    if title is not None:
+        props["Title"] = _prop_rich_text(title)
+    if company is not None:
+        props["Company"] = _prop_rich_text(company)
+    if location is not None:
+        props["Location"] = _prop_rich_text(location)
+    if pipeline_status is not None:
+        props["Pipeline Status"] = _prop_status(pipeline_status)
+    if relationship is not None:
+        props["Relationship"] = _prop_multi_select(relationship)
+    if interests is not None:
+        props["Interests"] = _prop_multi_select(interests)
+    if birthday is not None:
+        if schema.has_birthday:
+            props["Birthday"] = _prop_date(birthday)
+        else:
+            warnings.append("birthday ignored — no Birthday property found.")
+    if email is not None:
+        if schema.has_email:
+            props["Email"] = _prop_email(email)
+        else:
+            warnings.append("email ignored — no Email property found.")
+    if phone is not None:
+        if schema.has_phone:
+            props["Phone"] = _prop_phone_number(phone)
+        else:
+            warnings.append("phone ignored — no Phone property found.")
+    if website is not None:
+        props["Website"] = _prop_url(website)
+    if linkedin is not None:
+        props["LinkedIn"] = _prop_url(linkedin)
+    if twitter is not None:
+        props["Twitter"] = _prop_url(twitter)
+    if instagram is not None:
+        props["Instagram"] = _prop_url(instagram)
+    if tag_ids is not None:
+        props["Tags"] = _prop_relation(tag_ids)
+
+    if not props:
+        return _error("No properties to update. Provide at least one field.")
+
+    try:
+        page = await app.client.update_page(person_id, props)
+        result = format_generic_page(page)
+        if warnings:
+            result["_warning"] = " ".join(warnings)
+        return result
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Use search_people to find valid person IDs.")
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def log_checkin(
+    person_id: Annotated[str, Field(description="Person page ID.")],
+    summary: Annotated[
+        str | None, Field(description="Short summary of the check-in (used as note name prefix).")
+    ] = None,
+    next_check_in: Annotated[
+        str | None, Field(description="Next check-in date (YYYY-MM-DD).")
+    ] = None,
+    note_type: Annotated[
+        str | None,
+        Field(description=f"Note type for the linked Note. Default 'Meeting'. Options: {', '.join(NOTE_TYPES)}."),
+    ] = None,
+    content: Annotated[
+        str | None,
+        Field(description="Page body content for the linked note (markdown)."),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Log a check-in with a person: set ``Last Check-In`` to today (and optionally
+    ``Check-In`` to ``next_check_in``), and — when ``content`` or ``summary`` is
+    provided — also create a linked Note in the Notes database. Useful for
+    Hermes's daily accountability loop.
+
+    Returns ``{person: <format>, note: {id, url, name} | None, _note_create_error?: str}``.
+    The note creation is best-effort: if it fails (e.g. the workspace's Notes DB
+    has no People relation), the person update still happens and the error is
+    surfaced under ``_note_create_error`` rather than thrown."""
+    app = _ctx(ctx)
+    ds_id = _secondary_ds_id(app, "People")
+    if not ds_id:
+        return _error("People database not configured. Set UB_PEOPLE_DS_ID in .env.")
+
+    schema = app.people_schema
+    props: dict = {}
+    warnings: list[str] = []
+
+    if schema.has_last_check_in:
+        props["Last Check-In"] = _prop_date(_today())
+    else:
+        warnings.append("Last Check-In property not found — person left unchanged on date.")
+    if next_check_in:
+        if schema.has_check_in:
+            props["Check-In"] = _prop_date(next_check_in)
+        else:
+            warnings.append("next_check_in ignored — no Check-In property found.")
+
+    if props:
+        try:
+            page = await app.client.update_page(person_id, props)
+        except NotionAPIError as e:
+            return _handle_api_error(e, "Use search_people to find valid person IDs.")
+    else:
+        try:
+            page = await app.client.get_page(person_id)
+        except NotionAPIError as e:
+            return _handle_api_error(e, "Use search_people to find valid person IDs.")
+
+    person = format_generic_page(page)
+    if warnings:
+        person["_warning"] = " ".join(warnings)
+
+    result: dict = {"person": person, "note": None}
+
+    if not content and not summary:
+        return result
+
+    note_type_value = note_type or "Meeting"
+    if note_type_value not in app.note_types:
+        # Fall back to the always-present 'Note' when the workspace's Notes DB
+        # doesn't carry the requested type (e.g. 'Meeting' was dropped).
+        note_type_value = "Note" if "Note" in app.note_types else (app.note_types[0] if app.note_types else None)
+    if not note_type_value:
+        result["_note_create_error"] = "No note_type fell back from the live options list."
+        return result
+
+    person_name = person.get("Full Name") or "Person"
+    note_name = (
+        f"Check-in with {person_name}: {_today()}"
+        if not summary
+        else f"Check-in with {person_name} — {summary}"
+    )
+
+    note_props: dict = {
+        "Name": _prop_title(note_name),
+        "Note Date": _prop_date(_today()),
+        "Type": _prop_select(note_type_value),
+    }
+    note_blocks = text_to_blocks(content) if content else None
+
+    try:
+        note_page = await app.client.create_page(
+            app.config.notes_ds_id, note_props, children=note_blocks
+        )
+        result["note"] = {
+            "id": note_page.get("id"),
+            "url": note_page.get("url"),
+            "name": note_name,
+        }
+    except NotionAPIError as e:
+        err = _handle_api_error(e)
+        result["_note_create_error"] = err.get("error", str(e))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Database CRUD tools (3) — Tier 3 of the Hermes extension
+# ---------------------------------------------------------------------------
+#
+# These three tools expose create-database / read-database-schema /
+# update-database-schema — used by Hermes's planned onboarding flow that
+# auto-generates new UB-style databases under a user-chosen parent page.
+# They pin Notion API 2026-03-11 (the rest of the server stays on 2025-09-03)
+# which is required for DB-mutation endpoints.
+#
+# IMPORTANT: these are schema-mutating tools. The integration must have
+# permission to write to the parent page. Always test against a sandbox
+# workspace before pointing at production UB — create_database makes it
+# trivial to spin up orphan databases that pollute the sidebar.
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=True, idempotentHint=False
+    )
+)
+async def create_database(
+    parent_page_id: Annotated[
+        str, Field(description="Parent page ID for the new database.")
+    ],
+    title: Annotated[str, Field(description="Database title.")],
+    properties: Annotated[
+        dict,
+        Field(
+            description=(
+                "Notion API properties payload: each key is a property name, "
+                "each value is the typed schema object (e.g. ``{\"Name\": {\"title\": {}}}, "
+                "\"Status\": {\"select\": {\"options\": [...]}}, \"Tags\": {\"relation\": "
+                "{\"data_source_id\": \"...\"}}``)."
+            )
+        ),
+    ],
+    description: Annotated[
+        list[dict] | None,
+        Field(description="Optional rich-text description blocks."),
+    ] = None,
+    is_inline: Annotated[
+        bool, Field(description="True for an inline (toggle-block) database. Default False.")
+    ] = False,
+    icon: Annotated[dict | None, Field(description="Optional icon object.")] = None,
+    cover: Annotated[dict | None, Field(description="Optional cover object.")] = None,
+    ctx: Context = None,
+) -> dict:
+    """Create a new Notion database under ``parent_page_id``.
+
+    DESTRUCTIVE: a malformed call creates a permanent empty database in the
+    parent page's sidebar. Test against sandbox first.
+    """
+    app = _ctx(ctx)
+    try:
+        db = await app.client.create_database(
+            parent_page_id=parent_page_id,
+            title=title,
+            properties=properties,
+            description=description,
+            is_inline=is_inline,
+            icon=icon,
+            cover=cover,
+        )
+        return {
+            "id": db.get("id"),
+            "url": db.get("url"),
+            "title": db.get("title"),
+            "data_sources": db.get("data_sources"),
+            "is_inline": db.get("is_inline"),
+        }
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Check that parent_page_id is shared with the integration.")
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True, destructiveHint=False, idempotentHint=True
+    )
+)
+async def get_database_schema(
+    database_id: Annotated[str, Field(description="Database ID to inspect.")],
+    ctx: Context = None,
+) -> dict:
+    """Read a database's full schema (properties, types, options, and any
+    associated data sources). Read-only — safe against any workspace."""
+    app = _ctx(ctx)
+    try:
+        return await app.client.get_database_schema(database_id)
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Check that database_id is valid and shared with the integration.")
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=True, idempotentHint=False
+    )
+)
+async def update_database_schema(
+    data_source_id: Annotated[
+        str, Field(description="Data source ID whose schema is being patched.")
+    ],
+    properties: Annotated[
+        dict,
+        Field(
+            description=(
+                "Schema diff dict. Each key is a property name; the value is "
+                "either ``null`` (delete the property) or a typed schema object "
+                "(add/update it, same shape as create_database's properties arg). "
+                "Existing properties not mentioned are left untouched."
+            )
+        ),
+    ],
+    ctx: Context = None,
+) -> dict:
+    """Add, update, or delete properties on a data source's schema.
+
+    DESTRUCTIVE: deleting a property also drops its current data — Notion
+    doesn't provide recovery for removed properties. Prefer update-in-place
+    unless you intend to clear values."""
+    app = _ctx(ctx)
+    try:
+        ds = await app.client.update_database_schema(data_source_id, properties)
+        return {
+            "id": ds.get("id"),
+            "properties": ds.get("properties"),
+        }
+    except NotionAPIError as e:
+        return _handle_api_error(e, "Check that data_source_id is valid and shared with the integration.")

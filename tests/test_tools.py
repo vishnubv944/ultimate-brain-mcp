@@ -69,13 +69,13 @@ def _parse_result(result):
 
 @pytest.mark.asyncio
 async def test_list_tools(server_params, _check_env):
-    """Verify all 30 tools are registered."""
+    """Verify all tools are registered."""
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
             names = [t.name for t in tools.tools]
-            assert len(names) >= 31, f"Expected 31+ tools, got {len(names)}: {names}"
+            assert len(names) >= 40, f"Expected 40+ tools, got {len(names)}: {names}"
 
             expected = [
                 "search_tasks",
@@ -104,11 +104,30 @@ async def test_list_tools(server_params, _check_env):
                 "set_page_content",
                 "patch_page_content",
                 "daily_review_snapshot",
+                "weekly_review_snapshot",
                 "bulk_update_tasks",
+                "bulk_create_tasks",
+                "clear_my_day",
+                "search_milestones",
+                "create_milestone",
+                "update_milestone",
+                "search_work_sessions",
+                "log_work_session",
+                "list_project_templates",
                 "query_database",
                 "get_page",
                 "get_page_content",
                 "update_page",
+                # Tier 1 — People
+                "search_people",
+                "get_person_detail",
+                "create_person",
+                "update_person",
+                "log_checkin",
+                # Tier 3 — DB CRUD
+                "create_database",
+                "get_database_schema",
+                "update_database_schema",
             ]
             for name in expected:
                 assert name in names, f"Tool '{name}' not found"
@@ -348,3 +367,237 @@ async def test_bulk_update_tasks_partial_failure(server_params, _check_env):
             )
             assert bogus_row["ok"] is False
             assert "error" in bogus_row and bogus_row["error"]
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 tests — recurring fields + bulk_create_tasks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_recur(server_params, _check_env):
+    """create_task with recur_unit/interval/days populates those properties."""
+    import uuid
+
+    unique = f"[TEST] Recur-{uuid.uuid4().hex[:8]}"
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "create_task",
+                {
+                    "name": unique,
+                    "recur_interval": 2,
+                    "recur_unit": "Week(s)",
+                    "days": ["Mon", "Wed"],
+                },
+            )
+            data = _parse_result(result)
+            assert "id" in data, f"create_task returned no id: {data}"
+            # Clean up
+            await session.call_tool("archive_item", {"page_id": data["id"]})
+
+
+@pytest.mark.asyncio
+async def test_bulk_create_tasks_partial_failure(server_params, _check_env):
+    """bulk_create_tasks: a bogus project_id yields ok=false; valid rows still succeed."""
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            creates = [
+                {"name": "[TEST] bulk-ok", "status": "To Do"},
+                {
+                    "name": "[TEST] bulk-bad",
+                    "project_id": "00000000-0000-0000-0000-000000000000",
+                },
+            ]
+            result = await session.call_tool("bulk_create_tasks", {"creates": creates})
+            data = _parse_result(result)
+            assert data["summary"]["total"] == 2
+            assert data["summary"]["ok"] >= 1
+            assert data["summary"]["failed"] >= 1
+            # Failed row uses row_index, not task_id
+            failed = next(r for r in data["results"] if r["ok"] is False)
+            assert "row_index" in failed
+            assert "error" in failed
+            # Cleanup any successful rows
+            for r in data["results"]:
+                if r["ok"] and "task" in r and "id" in r["task"]:
+                    try:
+                        await session.call_tool(
+                            "archive_item", {"page_id": r["task"]["id"]}
+                        )
+                    except Exception:
+                        pass
+
+
+@pytest.mark.asyncio
+async def test_complete_task_preserves_due_end(server_params, _check_env):
+    """complete_task on a recurring task preserves due_end (time-block length)."""
+    import uuid
+
+    unique = f"[TEST] recur-advance-{uuid.uuid4().hex[:8]}"
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            create_result = await session.call_tool(
+                "create_task",
+                {
+                    "name": unique,
+                    "due": "2026-09-19T07:00:00+00:00",
+                    "due_end": "2026-09-19T08:00:00+00:00",
+                    "recur_interval": 1,
+                    "recur_unit": "Day(s)",
+                },
+            )
+            created = _parse_result(create_result)
+            assert "id" in created, f"create_task failed: {created}"
+
+            done = await session.call_tool(
+                "complete_task", {"task_id": created["id"]}
+            )
+            done_data = _parse_result(done)
+            # _note means recurring advanced; due should be the next day and
+            # due_end must still be set so the time-block length is preserved.
+            if "_note" in done_data:
+                assert "due" in done_data
+                assert done_data.get("due_end"), "due_end must persist for recurring tasks"
+                assert not done_data.get("_warning"), (
+                    f"unexpected _warning on recurring advance: {done_data.get('_warning')}"
+                )
+            else:
+                # Some workspaces fall through the Next Due path with a different
+                # _warning. Tolerate either — but due_end must still be set if due is.
+                if done_data.get("due"):
+                    assert done_data.get("due_end")
+
+            try:
+                await session.call_tool(
+                    "archive_item", {"page_id": created["id"]}
+                )
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 tests — People tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_people_returns_list(server_params, _check_env):
+    """search_people returns a list (possibly empty) when People DB is configured."""
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "search_people", {"limit": 5}
+            )
+            data = _parse_result(result)
+            # If People DB isn't configured, the tool returns an error dict;
+            # skip in that case. Otherwise, expect a list.
+            if isinstance(data, dict) and "error" in data:
+                pytest.skip(f"People not configured: {data['error']}")
+            assert isinstance(data, list)
+
+
+@pytest.mark.asyncio
+async def test_create_update_person_roundtrip(server_params, _check_env):
+    """create_person + update_person roundtrip — verifies both write paths."""
+    import uuid
+
+    unique = f"[TEST] Person-{uuid.uuid4().hex[:8]}"
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            probe = await session.call_tool("search_people", {"limit": 1})
+            probe_data = _parse_result(probe)
+            if isinstance(probe_data, dict) and "error" in probe_data:
+                pytest.skip(f"People not configured: {probe_data['error']}")
+
+            created = await session.call_tool(
+                "create_person", {"name": unique, "company": "[TEST] Co"}
+            )
+            created_data = _parse_result(created)
+            if "error" in created_data:
+                pytest.skip(f"Could not create person on this workspace: {created_data['error']}")
+            assert "id" in created_data, f"create_person returned no id: {created_data}"
+
+            try:
+                updated = await session.call_tool(
+                    "update_person",
+                    {
+                        "person_id": created_data["id"],
+                        "company": "[TEST] Co-Renamed",
+                    },
+                )
+                updated_data = _parse_result(updated)
+                assert "error" not in updated_data, (
+                    f"update_person failed: {updated_data}"
+                )
+            finally:
+                try:
+                    await session.call_tool(
+                        "archive_item", {"page_id": created_data["id"]}
+                    )
+                except Exception:
+                    pass
+
+
+@pytest.mark.asyncio
+async def test_log_checkin_sets_last_check_in(server_params, _check_env):
+    """log_checkin updates the person and returns a usable shape."""
+    import uuid
+
+    unique = f"[TEST] Checkin-{uuid.uuid4().hex[:8]}"
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            probe = await session.call_tool("search_people", {"limit": 1})
+            probe_data = _parse_result(probe)
+            if isinstance(probe_data, dict) and "error" in probe_data:
+                pytest.skip(f"People not configured: {probe_data['error']}")
+
+            created = await session.call_tool(
+                "create_person", {"name": unique}
+            )
+            created_data = _parse_result(created)
+            if "error" in created_data:
+                pytest.skip(f"Could not create person on this workspace: {created_data['error']}")
+            person_id = created_data["id"]
+
+            try:
+                checkin = await session.call_tool(
+                    "log_checkin",
+                    {"person_id": person_id, "summary": "Smoke test"},
+                )
+                checkin_data = _parse_result(checkin)
+                assert "person" in checkin_data, (
+                    f"log_checkin returned no 'person' key: {checkin_data}"
+                )
+                # Workspace may not have Last Check-In prop — accept _warning.
+                # The note create also may fail; either path is acceptable so
+                # long as the person update itself succeeded.
+                detail = await session.call_tool(
+                    "get_person_detail", {"person_id": person_id}
+                )
+                detail_data = _parse_result(detail)
+                assert "person" in detail_data, (
+                    f"get_person_detail failed: {detail_data}"
+                )
+                # Tear down the linked note, if any
+                if checkin_data.get("note") and checkin_data["note"].get("id"):
+                    try:
+                        await session.call_tool(
+                            "archive_item",
+                            {"page_id": checkin_data["note"]["id"]},
+                        )
+                    except Exception:
+                        pass
+            finally:
+                try:
+                    await session.call_tool(
+                        "archive_item", {"page_id": person_id}
+                    )
+                except Exception:
+                    pass

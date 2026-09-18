@@ -40,6 +40,23 @@ NOTES_TYPE_PROP = "Type"
 
 TASK_PRIORITIES = ["Low", "Medium", "High"]
 
+# Recurring-task field reference (Ultimate Brain v3.0 Tasks schema).
+# Recur Unit is a select on the Tasks DB; options are workspace-owned but
+# these are the canonical ones UB ships. Recur Interval is a number, Days is
+# a multi_select of weekday short-names.
+RECUR_UNITS = [
+    "Day(s)",
+    "Week(s)",
+    "Month(s)",
+    "Month(s) on the Last Weekday",
+    "Nth Weekday of Month",
+]
+WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+# People DB canonical options. Live discovery fills in workspace-specific
+# extras; these are the defaults surfaced when the schema is unreachable.
+PIPELINE_STATUSES = ["Prospect", "Contacted", "Negotiating", "Closed", "Rejected"]
+
 
 # ---------------------------------------------------------------------------
 # Schema introspection helpers

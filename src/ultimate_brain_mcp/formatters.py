@@ -70,6 +70,14 @@ def _url(prop: dict) -> str | None:
     return prop.get("url")
 
 
+def _email(prop: dict) -> str | None:
+    return prop.get("email")
+
+
+def _phone_number(prop: dict) -> str | None:
+    return prop.get("phone_number")
+
+
 def _relation(prop: dict) -> list[str]:
     return [r["id"] for r in prop.get("relation", [])]
 
@@ -452,6 +460,8 @@ _EXTRACTORS: dict[str, Callable] = {
     "checkbox": _checkbox,
     "number": _number,
     "url": _url,
+    "email": _email,
+    "phone_number": _phone_number,
     "relation": _relation,
     "formula": _formula,
     "people": _people,

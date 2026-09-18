@@ -143,3 +143,28 @@ async def seed_note(notion_client: NotionClient, ub_config: UBConfig, seed_tag, 
     )
     yield page
     await notion_client.update_page(page["id"], {"Archived": _checkbox(True)})
+
+
+@pytest_asyncio.fixture
+async def seed_person(notion_client: NotionClient, ub_config: UBConfig, seed_tag):
+    """Create a test person linked to the seed tag, yield it, then archive it.
+    Skips when the People data source isn't configured (UB_PEOPLE_DS_ID unset)."""
+    people_ds = ub_config.secondary_ds.get("People")
+    if not people_ds:
+        pytest.skip("People data source not configured (UB_PEOPLE_DS_ID unset).")
+    try:
+        page = await notion_client.create_page(
+            people_ds,
+            {
+                "Full Name": _title(f"{TEST_PREFIX}Test Person"),
+                "Pipeline Status": _status("Prospect"),
+                "Tags": _relation([seed_tag["id"]]),
+            },
+        )
+    except Exception as e:  # noqa: BLE001 — skip when workspace's People schema differs
+        pytest.skip(f"Could not create seed_person on this workspace's People DB: {e!r}")
+    yield page
+    try:
+        await notion_client.update_page(page["id"], {"Archived": _checkbox(True)})
+    except Exception:
+        pass  # Teardown is best-effort; archive may not be available.

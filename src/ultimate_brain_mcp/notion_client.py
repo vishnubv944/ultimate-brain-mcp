@@ -687,3 +687,90 @@ class NotionClient:
                 break
             cursor = data.get("next_cursor")
         return all_results
+
+    # ------------------------------------------------------------------
+    # Database CRUD (Tier 3 of the Hermes extension)
+    # ------------------------------------------------------------------
+    # These endpoints require the 2026-03-11 Notion API version; the rest of
+    # this client stays on 2025-09-03. Each call pins MARKDOWN_NOTION_VERSION
+    # explicitly so a future Notion-Version bump doesn't accidentally
+    # surface DB-mutation tools to workspaces that haven't opted in.
+
+    async def create_database(
+        self,
+        *,
+        parent_page_id: str,
+        title: str,
+        properties: dict,
+        description: list[dict] | None = None,
+        is_inline: bool = False,
+        icon: dict | None = None,
+        cover: dict | None = None,
+    ) -> dict:
+        """POST /v1/databases — create a new database under *parent_page_id*.
+
+        ``properties`` is the Notion API shape itself — caller's responsibility
+        to construct valid property payloads (e.g. ``{"Name": {"title": {}}}``
+        for a title, ``{"Status": {"select": {"options": [...]}}}`` for a
+        select, etc.). Returns the created database dict on success.
+        """
+        body: dict = {
+            "parent": {"type": "page_id", "page_id": parent_page_id},
+            "title": [{"type": "text", "text": {"content": title}}],
+            "properties": properties,
+            "is_inline": is_inline,
+        }
+        if description:
+            body["description"] = description
+        if icon:
+            body["icon"] = icon
+        if cover:
+            body["cover"] = cover
+        resp = await self._request(
+            "POST",
+            "/databases",
+            json=body,
+            notion_version=MARKDOWN_NOTION_VERSION,
+        )
+        return resp.json()
+
+    async def get_database_schema(self, database_id: str) -> dict:
+        """GET /v1/databases/{id} then GET /v1/data_sources/{id} for each
+        associated data source. Returns ``{database_id, data_sources}`` where
+        each data source carries its full schema + id.
+
+        Note: as of Notion 2025-09-03, a database can have multiple data
+        sources behind it. Hermes's planned DB scaffolding assumes a
+        1:1 layout but tolerates N:1 — the response includes every data
+        source so the caller can pick the right schema to mutate.
+        """
+        db_resp = await self._request("GET", f"/databases/{database_id}")
+        db = db_resp.json()
+        ds_ids = list(db.get("data_sources") or [])
+        if not ds_ids and db.get("data_source_id"):
+            ds_ids = [db["data_source_id"]]
+
+        sources = []
+        for ds_id in ds_ids:
+            ds_resp = await self._request("GET", f"/data_sources/{ds_id}")
+            sources.append({"id": ds_id, "schema": ds_resp.json()})
+
+        return {"database_id": database_id, "data_sources": sources}
+
+    async def update_database_schema(
+        self, data_source_id: str, properties: dict
+    ) -> dict:
+        """PATCH /v1/data_sources/{id} with a ``properties`` dict that can
+        ADD/UPDATE/DELETE schema entries.
+
+        Notion's contract: pass ``{"<name>": null}`` to delete a property, or
+        ``{"<name>": {"<type>": {...config...}}}`` to add or update one. The
+        server returns the patched data source dict on success.
+        """
+        resp = await self._request(
+            "PATCH",
+            f"/data_sources/{data_source_id}",
+            json={"properties": properties},
+            notion_version=MARKDOWN_NOTION_VERSION,
+        )
+        return resp.json()
