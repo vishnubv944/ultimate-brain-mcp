@@ -319,8 +319,7 @@ async def _discover_people_schema(client: NotionClient, config: UBConfig) -> Peo
         schema = await client.get_data_source(ds_id)
     except Exception as e:  # noqa: BLE001 — discovery is best-effort
         print(
-            f"[ultimate-brain-mcp] People schema fetch failed ({e!r}); "
-            f"falling back to Name-only.",
+            f"[ultimate-brain-mcp] People schema fetch failed ({e!r}); falling back to Name-only.",
             file=sys.stderr,
         )
         return PeopleSchema()
@@ -1384,7 +1383,9 @@ async def get_project_detail(
         return _handle_api_error(e, "Use search_projects to find valid project IDs.")
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
 async def list_project_templates(ctx: Context = None) -> dict:
     """List page templates defined on the Projects database (name, id, whether it's the
     default). Use the returned IDs with create_project's template_id param, or pass
@@ -1461,7 +1462,7 @@ async def create_project(
     if goal_id:
         props["Goal"] = _prop_relation([goal_id])
 
-    if (content and (use_default_template or template_id)) :
+    if content and (use_default_template or template_id):
         return _error(
             "content is mutually exclusive with use_default_template/template_id "
             "— Notion doesn't allow setting page body content on a templated create."
@@ -2939,10 +2940,10 @@ class BulkTaskCreate(BaseModel):
         default=None,
         description="End of the time block, ISO 8601 datetime. Only meaningful with due set.",
     )
-    priority: Literal["Low", "Medium", "High"] | None = Field(
-        default=None, description="Priority."
+    priority: Literal["Low", "Medium", "High"] | None = Field(default=None, description="Priority.")
+    project_id: str | None = Field(
+        default=None, description="Project page ID to link this task to."
     )
-    project_id: str | None = Field(default=None, description="Project page ID to link this task to.")
     labels: list[str] | None = Field(default=None, description="Label names (multi-select).")
     my_day: bool | None = Field(default=None, description="Add to My Day.")
     parent_task_id: str | None = Field(
@@ -3136,9 +3137,13 @@ def _secondary_ds_id(app: AppContext, name: str) -> str | None:
     return app.config.secondary_ds.get(name)
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
 async def search_milestones(
-    query: Annotated[str | None, Field(description="Text to search for in milestone names.")] = None,
+    query: Annotated[
+        str | None, Field(description="Text to search for in milestone names.")
+    ] = None,
     goal_id: Annotated[
         str | None,
         Field(description="Filter by linked goal page ID. Only works if a Goal relation exists."),
@@ -3160,9 +3165,7 @@ async def search_milestones(
         filters.append({"property": "Name", "title": {"contains": query}})
     if goal_id:
         if not schema.goal_property_name:
-            return _error(
-                "This workspace's Milestones database has no Goal relation to filter by."
-            )
+            return _error("This workspace's Milestones database has no Goal relation to filter by.")
         filters.append({"property": schema.goal_property_name, "relation": {"contains": goal_id}})
 
     filter_obj: dict | None = None
@@ -3174,8 +3177,7 @@ async def search_milestones(
     try:
         pages = await app.client.query_all(ds_id, filter=filter_obj)
         return [
-            format_milestone(p, goal_property_name=schema.goal_property_name)
-            for p in pages[:limit]
+            format_milestone(p, goal_property_name=schema.goal_property_name) for p in pages[:limit]
         ]
     except NotionAPIError as e:
         return _handle_api_error(e)
@@ -3188,7 +3190,9 @@ async def create_milestone(
     name: Annotated[str, Field(description="Milestone name.")],
     goal_id: Annotated[
         str | None,
-        Field(description="Goal page ID to link. Only works if this workspace has a Goal relation."),
+        Field(
+            description="Goal page ID to link. Only works if this workspace has a Goal relation."
+        ),
     ] = None,
     date_completed: Annotated[
         str | None,
@@ -3291,7 +3295,9 @@ async def update_milestone(
         return _handle_api_error(e, "Use search_milestones to find valid milestone IDs.")
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
 async def search_work_sessions(
     task_id: Annotated[str | None, Field(description="Filter by linked task page ID.")] = None,
     active_only: Annotated[
@@ -3332,13 +3338,19 @@ async def search_work_sessions(
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
 )
 async def log_work_session(
-    start: Annotated[str, Field(description="Start timestamp, ISO 8601 (e.g. '2026-08-08T14:00:00').")],
+    start: Annotated[
+        str, Field(description="Start timestamp, ISO 8601 (e.g. '2026-08-08T14:00:00').")
+    ],
     end: Annotated[
         str | None,
         Field(description="End timestamp, ISO 8601. Omit to start an in-progress session."),
     ] = None,
-    task_id: Annotated[str | None, Field(description="Task page ID to link this session to.")] = None,
-    name: Annotated[str | None, Field(description="Session name. Defaults to 'Work Session'.")] = None,
+    task_id: Annotated[
+        str | None, Field(description="Task page ID to link this session to.")
+    ] = None,
+    name: Annotated[
+        str | None, Field(description="Session name. Defaults to 'Work Session'.")
+    ] = None,
     ctx: Context = None,
 ) -> dict:
     """Log a Work Session — with just `start`, begins an in-progress session (no End);
@@ -3376,7 +3388,15 @@ async def query_database(
     database: Annotated[
         str | None,
         Field(
-            description="Database name (e.g. 'Work Sessions', 'Books', 'People'). Omit to list available databases."
+            description="Configured secondary database name (e.g. 'Work Sessions', 'Books', 'People'). "
+            "Mutually exclusive with data_source_id — use data_source_id for ad-hoc DBs not in the env map."
+        ),
+    ] = None,
+    data_source_id: Annotated[
+        str | None,
+        Field(
+            description="Direct data source ID to query. Use this for databases not in the configured "
+            "SECONDARY_DB_ENV_MAP. Discover IDs via list_databases."
         ),
     ] = None,
     filter: Annotated[
@@ -3392,30 +3412,198 @@ async def query_database(
     limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 50,
     ctx: Context = None,
 ) -> list[dict] | dict:
-    """Query any configured secondary database by name. Accepts optional Notion filter and sorts.
-    Call without arguments to see which databases are available.
-    For primary databases (Tasks, Projects, Notes, Tags, Goals), use the dedicated tools instead."""
+    """Query any Notion database — configured secondary DBs by name, or any DB by data_source_id.
+
+    Pass exactly one of ``database`` or ``data_source_id``. With no arguments, returns the
+    list of configured secondary DBs plus a hint pointing at ``list_databases`` for ad-hoc
+    discovery. Accepts optional Notion ``filter`` and ``sorts``. For primary databases
+    (Tasks, Projects, Notes, Tags, Goals), use the dedicated tools instead."""
     app = _ctx(ctx)
 
-    if not database:
-        available = list(app.config.secondary_ds.keys())
-        if not available:
-            return _error("No secondary databases configured. Set optional env vars in .env.")
-        return {"available_databases": available}
+    if database and data_source_id:
+        return _error("Pass exactly one of 'database' or 'data_source_id', not both.")
 
-    ds_id = app.config.secondary_ds.get(database)
-    if not ds_id:
+    if not database and not data_source_id:
         available = list(app.config.secondary_ds.keys())
-        return _error(
-            f"Database '{database}' not found or not configured. "
-            f"Available: {', '.join(available) if available else 'none'}"
-        )
+        return {
+            "configured_databases": available,
+            "hint": "For ad-hoc databases not in this list, call list_databases first, then "
+            "pass the returned data_source_id here.",
+        }
+
+    if data_source_id:
+        ds_id: str = data_source_id
+    else:
+        resolved = app.config.secondary_ds.get(database or "")
+        if not resolved:
+            available = list(app.config.secondary_ds.keys())
+            return _error(
+                f"Database '{database}' not found in configured secondary DBs. "
+                f"Configured: {', '.join(available) if available else 'none'}. "
+                f"For unconfigured DBs, call list_databases and pass data_source_id instead."
+            )
+        ds_id = resolved
 
     try:
         pages = await app.client.query_all(ds_id, filter=filter, sorts=sorts)
         return [format_generic_page(p) for p in pages[:limit]]
     except NotionAPIError as e:
         return _handle_api_error(e)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
+async def list_databases(
+    query: Annotated[
+        str | None,
+        Field(description="Optional title substring to filter by (case-insensitive)."),
+    ] = None,
+    limit: Annotated[int, Field(description="Maximum results.", ge=1, le=100)] = 50,
+    ctx: Context = None,
+) -> list[dict] | dict:
+    """List every Notion database shared with the integration.
+
+    Discovers databases via Notion's ``/search`` endpoint with ``object=database``.
+    Use this to find databases that aren't in the configured SECONDARY_DB_ENV_MAP —
+    then pass the returned ``id`` (or one of its ``data_sources[].id``) to
+    ``query_database``, ``create_page``, or ``get_database_schema``.
+
+    Read-only. The integration must already have access to the database."""
+    app = _ctx(ctx)
+    try:
+        results = await app.client.search(
+            query or "",
+            filter={"value": "database", "property": "object"},
+        )
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+    databases: list[dict] = []
+    for db in results[:limit]:
+        title_parts = db.get("title", [])
+        title = "".join(t.get("plain_text", "") for t in title_parts) if title_parts else ""
+        if query and query.lower() not in title.lower():
+            continue
+        databases.append(
+            {
+                "id": db.get("id"),
+                "title": title,
+                "url": db.get("url"),
+                "archived": bool(db.get("archived")),
+                "last_edited": db.get("last_edited_time"),
+                "data_sources": db.get("data_sources"),
+                "icon": db.get("icon"),
+            }
+        )
+    return databases
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
+)
+async def create_page(
+    data_source_id: Annotated[
+        str,
+        Field(
+            description="Data source ID to create the page in. Discover via list_databases or get_database_schema."
+        ),
+    ],
+    properties: Annotated[
+        dict,
+        Field(
+            description=(
+                "Property values. Two shapes accepted per property:\n"
+                "  • Simple value (auto-coerced): str for title/rich_text/select/status/url/email/phone_number, "
+                "list[str] for multi_select or relation IDs, bool for checkbox, "
+                "int/float for number, {'start': 'YYYY-MM-DD'[, 'end': ...]} for date.\n"
+                "  • Raw Notion property payload (passed through verbatim): e.g. "
+                "{'Status': {'select': {'name': 'Active'}}}, {'Cover': {'files': [...]}}, "
+                "{'Formula': {'formula': {'expression': '...'}}}. Use raw form for property types "
+                "the simple coercion doesn't support (files, formulas, verification, rollups)."
+            )
+        ),
+    ],
+    content: Annotated[
+        str | None,
+        Field(
+            description="Optional page body as markdown. Parsed to Notion blocks "
+            "(headings, bullets, numbered lists, todos, code, quotes, dividers, paragraphs)."
+        ),
+    ] = None,
+    template: Annotated[
+        dict | None,
+        Field(
+            description="Optional template to apply, e.g. {'type': 'default'} or "
+            "{'type': 'template_id', 'template_id': '...'}. Mutually exclusive with content."
+        ),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Create a page in any Notion data source — the generic CRUD fallback for databases
+    that don't have a dedicated MCP tool.
+
+    Validates property names against the data source's schema (clear errors for typos),
+    auto-coerces simple values, passes raw Notion property payloads through verbatim.
+    Use ``list_databases`` to discover ``data_source_id`` for unconfigured DBs.
+
+    DESTRUCTIVE in the sense that a malformed call creates a permanent page in the
+    target DB. Use ``[TEST]``-prefixed names against a sandbox workspace first."""
+    app = _ctx(ctx)
+
+    if content is not None and template is not None:
+        return _error("Pass at most one of 'content' or 'template', not both.")
+
+    # Fetch the data source schema to validate property names and types.
+    try:
+        ds = await app.client.get_data_source(data_source_id)
+    except NotionAPIError as e:
+        return _handle_api_error(
+            e, "Check that data_source_id is valid and shared with the integration."
+        )
+
+    schema_props = ds.get("properties", {})
+
+    notion_props: dict = {}
+    for prop_name, value in properties.items():
+        if prop_name not in schema_props:
+            return _error(
+                f"Property '{prop_name}' not found on this data source. "
+                f"Available: {', '.join(schema_props.keys())}"
+            )
+
+        # Raw Notion payload — pass through verbatim
+        if isinstance(value, dict):
+            notion_props[prop_name] = value
+            continue
+
+        # Simple value — coerce based on schema-declared type
+        ptype = schema_props[prop_name].get("type")
+        try:
+            notion_props[prop_name] = _coerce_property(ptype, value)
+        except ValueError as ve:
+            return _error(f"Cannot set '{prop_name}': {ve}")
+
+    children: list[dict] | None = None
+    if content is not None:
+        try:
+            children = text_to_blocks(content)
+        except Exception as e:
+            return _error(f"Failed to parse content markdown: {e}")
+
+    try:
+        page = await app.client.create_page(
+            data_source_id,
+            notion_props,
+            children=children,
+            template=template,
+        )
+    except NotionAPIError as e:
+        return _handle_api_error(e)
+
+    formatted = format_generic_page(page)
+    formatted["url"] = page.get("url")
+    return formatted
 
 
 @mcp.tool(
@@ -3555,11 +3743,11 @@ def _coerce_property(ptype: str, value) -> dict:
 # rather than 400-ing on every optional field that the workspace trimmed.
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
 async def search_people(
-    query: Annotated[
-        str | None, Field(description="Text to search for in full names.")
-    ] = None,
+    query: Annotated[str | None, Field(description="Text to search for in full names.")] = None,
     pipeline_status: Annotated[
         str | None,
         Field(
@@ -3599,13 +3787,9 @@ async def search_people(
     if query:
         filters.append({"property": "Full Name", "title": {"contains": query}})
     if pipeline_status:
-        filters.append(
-            {"property": "Pipeline Status", "status": {"equals": pipeline_status}}
-        )
+        filters.append({"property": "Pipeline Status", "status": {"equals": pipeline_status}})
     if relationship:
-        filters.append(
-            {"property": "Relationship", "multi_select": {"contains": relationship}}
-        )
+        filters.append({"property": "Relationship", "multi_select": {"contains": relationship}})
     if tag_id:
         filters.append({"property": "Tags", "relation": {"contains": tag_id}})
 
@@ -3615,7 +3799,9 @@ async def search_people(
     elif len(filters) > 1:
         filter_obj = {"and": filters}
 
-    sort_prop = {"name": "Full Name", "last_check_in": "Last Check-In", "check_in": "Check-In"}[sort_by]
+    sort_prop = {"name": "Full Name", "last_check_in": "Last Check-In", "check_in": "Check-In"}[
+        sort_by
+    ]
     sorts = [{"property": sort_prop, "direction": "ascending"}]
 
     try:
@@ -3625,7 +3811,9 @@ async def search_people(
         return _handle_api_error(e)
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True))
+@mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
+)
 async def get_person_detail(
     person_id: Annotated[str, Field(description="Person page ID.")],
     resolve_relations: Annotated[
@@ -3696,18 +3884,10 @@ async def get_person_detail(
 )
 async def create_person(
     name: Annotated[str, Field(description="Full name (the title property).")],
-    surname: Annotated[
-        str | None, Field(description="Surname (rich_text).")
-    ] = None,
-    title: Annotated[
-        str | None, Field(description="Job title (rich_text).")
-    ] = None,
-    company: Annotated[
-        str | None, Field(description="Company (rich_text).")
-    ] = None,
-    location: Annotated[
-        str | None, Field(description="Location (rich_text).")
-    ] = None,
+    surname: Annotated[str | None, Field(description="Surname (rich_text).")] = None,
+    title: Annotated[str | None, Field(description="Job title (rich_text).")] = None,
+    company: Annotated[str | None, Field(description="Company (rich_text).")] = None,
+    location: Annotated[str | None, Field(description="Location (rich_text).")] = None,
     pipeline_status: Annotated[
         str | None,
         Field(
@@ -3726,27 +3906,13 @@ async def create_person(
         list[str] | None,
         Field(description="Interests (multi_select, replaces existing)."),
     ] = None,
-    birthday: Annotated[
-        str | None, Field(description="Birthday (YYYY-MM-DD).")
-    ] = None,
-    email: Annotated[
-        str | None, Field(description="Email (email type).")
-    ] = None,
-    phone: Annotated[
-        str | None, Field(description="Phone number (phone_number type).")
-    ] = None,
-    website: Annotated[
-        str | None, Field(description="Website URL.")
-    ] = None,
-    linkedin: Annotated[
-        str | None, Field(description="LinkedIn URL.")
-    ] = None,
-    twitter: Annotated[
-        str | None, Field(description="Twitter / X URL.")
-    ] = None,
-    instagram: Annotated[
-        str | None, Field(description="Instagram URL.")
-    ] = None,
+    birthday: Annotated[str | None, Field(description="Birthday (YYYY-MM-DD).")] = None,
+    email: Annotated[str | None, Field(description="Email (email type).")] = None,
+    phone: Annotated[str | None, Field(description="Phone number (phone_number type).")] = None,
+    website: Annotated[str | None, Field(description="Website URL.")] = None,
+    linkedin: Annotated[str | None, Field(description="LinkedIn URL.")] = None,
+    twitter: Annotated[str | None, Field(description="Twitter / X URL.")] = None,
+    instagram: Annotated[str | None, Field(description="Instagram URL.")] = None,
     tag_ids: Annotated[
         list[str] | None, Field(description="Tag page IDs to link via Tags relation.")
     ] = None,
@@ -3819,9 +3985,7 @@ async def create_person(
         props["Tags"] = _prop_relation(tag_ids)
 
     children = text_to_blocks(content) if content else None
-    possible_duplicate = await _find_possible_duplicate(
-        app, ds_id, name, format_generic_page
-    )
+    possible_duplicate = await _find_possible_duplicate(app, ds_id, name, format_generic_page)
 
     try:
         page = await app.client.create_page(ds_id, props, children=children)
@@ -3840,9 +4004,7 @@ async def create_person(
 )
 async def update_person(
     person_id: Annotated[str, Field(description="Person page ID to update.")],
-    name: Annotated[
-        str | None, Field(description="New full name (title).")
-    ] = None,
+    name: Annotated[str | None, Field(description="New full name (title).")] = None,
     surname: Annotated[str | None, Field(description="New Surname.")] = None,
     title: Annotated[str | None, Field(description="New job Title.")] = None,
     company: Annotated[str | None, Field(description="New Company.")] = None,
@@ -3858,9 +4020,7 @@ async def update_person(
         list[str] | None,
         Field(description="New Interests (multi_select, replaces existing)."),
     ] = None,
-    birthday: Annotated[
-        str | None, Field(description="New Birthday (YYYY-MM-DD).")
-    ] = None,
+    birthday: Annotated[str | None, Field(description="New Birthday (YYYY-MM-DD).")] = None,
     email: Annotated[str | None, Field(description="New Email.")] = None,
     phone: Annotated[str | None, Field(description="New Phone number.")] = None,
     website: Annotated[str | None, Field(description="New Website URL.")] = None,
@@ -3952,7 +4112,9 @@ async def log_checkin(
     ] = None,
     note_type: Annotated[
         str | None,
-        Field(description=f"Note type for the linked Note. Default 'Meeting'. Options: {', '.join(NOTE_TYPES)}."),
+        Field(
+            description=f"Note type for the linked Note. Default 'Meeting'. Options: {', '.join(NOTE_TYPES)}."
+        ),
     ] = None,
     content: Annotated[
         str | None,
@@ -4008,11 +4170,11 @@ async def log_checkin(
     if not content and not summary:
         return result
 
-    note_type_value = note_type or "Meeting"
+    note_type_value: str | None = note_type or "Meeting"
     if note_type_value not in app.note_types:
         # Fall back to the always-present 'Note' when the workspace's Notes DB
         # doesn't carry the requested type (e.g. 'Meeting' was dropped).
-        note_type_value = "Note" if "Note" in app.note_types else (app.note_types[0] if app.note_types else None)
+        note_type_value = "Note" if "Note" in app.note_types else next(iter(app.note_types), None)
     if not note_type_value:
         result["_note_create_error"] = "No note_type fell back from the live options list."
         return result
@@ -4064,23 +4226,19 @@ async def log_checkin(
 
 
 @mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=True, idempotentHint=False
-    )
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False)
 )
 async def create_database(
-    parent_page_id: Annotated[
-        str, Field(description="Parent page ID for the new database.")
-    ],
+    parent_page_id: Annotated[str, Field(description="Parent page ID for the new database.")],
     title: Annotated[str, Field(description="Database title.")],
     properties: Annotated[
         dict,
         Field(
             description=(
                 "Notion API properties payload: each key is a property name, "
-                "each value is the typed schema object (e.g. ``{\"Name\": {\"title\": {}}}, "
-                "\"Status\": {\"select\": {\"options\": [...]}}, \"Tags\": {\"relation\": "
-                "{\"data_source_id\": \"...\"}}``)."
+                'each value is the typed schema object (e.g. ``{"Name": {"title": {}}}, '
+                '"Status": {"select": {"options": [...]}}, "Tags": {"relation": '
+                '{"data_source_id": "..."}}``).'
             )
         ),
     ],
@@ -4123,9 +4281,7 @@ async def create_database(
 
 
 @mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=True, destructiveHint=False, idempotentHint=True
-    )
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
 )
 async def get_database_schema(
     database_id: Annotated[str, Field(description="Database ID to inspect.")],
@@ -4137,13 +4293,13 @@ async def get_database_schema(
     try:
         return await app.client.get_database_schema(database_id)
     except NotionAPIError as e:
-        return _handle_api_error(e, "Check that database_id is valid and shared with the integration.")
+        return _handle_api_error(
+            e, "Check that database_id is valid and shared with the integration."
+        )
 
 
 @mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=True, idempotentHint=False
-    )
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False)
 )
 async def update_database_schema(
     data_source_id: Annotated[
@@ -4175,4 +4331,6 @@ async def update_database_schema(
             "properties": ds.get("properties"),
         }
     except NotionAPIError as e:
-        return _handle_api_error(e, "Check that data_source_id is valid and shared with the integration.")
+        return _handle_api_error(
+            e, "Check that data_source_id is valid and shared with the integration."
+        )

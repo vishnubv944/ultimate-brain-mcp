@@ -75,7 +75,7 @@ async def test_list_tools(server_params, _check_env):
             await session.initialize()
             tools = await session.list_tools()
             names = [t.name for t in tools.tools]
-            assert len(names) >= 40, f"Expected 40+ tools, got {len(names)}: {names}"
+            assert len(names) >= 51, f"Expected 51+ tools, got {len(names)}: {names}"
 
             expected = [
                 "search_tasks",
@@ -128,6 +128,9 @@ async def test_list_tools(server_params, _check_env):
                 "create_database",
                 "get_database_schema",
                 "update_database_schema",
+                # Generic CRUD fallback (any DB)
+                "list_databases",
+                "create_page",
             ]
             for name in expected:
                 assert name in names, f"Tool '{name}' not found"
@@ -424,9 +427,7 @@ async def test_bulk_create_tasks_partial_failure(server_params, _check_env):
             for r in data["results"]:
                 if r["ok"] and "task" in r and "id" in r["task"]:
                     try:
-                        await session.call_tool(
-                            "archive_item", {"page_id": r["task"]["id"]}
-                        )
+                        await session.call_tool("archive_item", {"page_id": r["task"]["id"]})
                     except Exception:
                         pass
 
@@ -453,9 +454,7 @@ async def test_complete_task_preserves_due_end(server_params, _check_env):
             created = _parse_result(create_result)
             assert "id" in created, f"create_task failed: {created}"
 
-            done = await session.call_tool(
-                "complete_task", {"task_id": created["id"]}
-            )
+            done = await session.call_tool("complete_task", {"task_id": created["id"]})
             done_data = _parse_result(done)
             # _note means recurring advanced; due should be the next day and
             # due_end must still be set so the time-block length is preserved.
@@ -472,9 +471,7 @@ async def test_complete_task_preserves_due_end(server_params, _check_env):
                     assert done_data.get("due_end")
 
             try:
-                await session.call_tool(
-                    "archive_item", {"page_id": created["id"]}
-                )
+                await session.call_tool("archive_item", {"page_id": created["id"]})
             except Exception:
                 pass
 
@@ -490,9 +487,7 @@ async def test_search_people_returns_list(server_params, _check_env):
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            result = await session.call_tool(
-                "search_people", {"limit": 5}
-            )
+            result = await session.call_tool("search_people", {"limit": 5})
             data = _parse_result(result)
             # If People DB isn't configured, the tool returns an error dict;
             # skip in that case. Otherwise, expect a list.
@@ -532,14 +527,10 @@ async def test_create_update_person_roundtrip(server_params, _check_env):
                     },
                 )
                 updated_data = _parse_result(updated)
-                assert "error" not in updated_data, (
-                    f"update_person failed: {updated_data}"
-                )
+                assert "error" not in updated_data, f"update_person failed: {updated_data}"
             finally:
                 try:
-                    await session.call_tool(
-                        "archive_item", {"page_id": created_data["id"]}
-                    )
+                    await session.call_tool("archive_item", {"page_id": created_data["id"]})
                 except Exception:
                     pass
 
@@ -558,9 +549,7 @@ async def test_log_checkin_sets_last_check_in(server_params, _check_env):
             if isinstance(probe_data, dict) and "error" in probe_data:
                 pytest.skip(f"People not configured: {probe_data['error']}")
 
-            created = await session.call_tool(
-                "create_person", {"name": unique}
-            )
+            created = await session.call_tool("create_person", {"name": unique})
             created_data = _parse_result(created)
             if "error" in created_data:
                 pytest.skip(f"Could not create person on this workspace: {created_data['error']}")
@@ -578,13 +567,9 @@ async def test_log_checkin_sets_last_check_in(server_params, _check_env):
                 # Workspace may not have Last Check-In prop — accept _warning.
                 # The note create also may fail; either path is acceptable so
                 # long as the person update itself succeeded.
-                detail = await session.call_tool(
-                    "get_person_detail", {"person_id": person_id}
-                )
+                detail = await session.call_tool("get_person_detail", {"person_id": person_id})
                 detail_data = _parse_result(detail)
-                assert "person" in detail_data, (
-                    f"get_person_detail failed: {detail_data}"
-                )
+                assert "person" in detail_data, f"get_person_detail failed: {detail_data}"
                 # Tear down the linked note, if any
                 if checkin_data.get("note") and checkin_data["note"].get("id"):
                     try:
@@ -596,8 +581,175 @@ async def test_log_checkin_sets_last_check_in(server_params, _check_env):
                         pass
             finally:
                 try:
-                    await session.call_tool(
-                        "archive_item", {"page_id": person_id}
-                    )
+                    await session.call_tool("archive_item", {"page_id": person_id})
                 except Exception:
                     pass
+
+
+# ---------------------------------------------------------------------------
+# Generic CRUD fallback — list_databases / create_page
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_databases_returns_list(server_params, _check_env):
+    """list_databases returns at least the configured secondary DBs."""
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("list_databases", {})
+            data = _parse_result(result)
+            assert isinstance(data, list), f"Expected list, got: {data}"
+            # We can't assert non-emptiness (depends on integration sharing),
+            # but every entry must have an id and title.
+            for db in data:
+                assert "id" in db
+                assert "title" in db
+                assert "url" in db
+                assert "archived" in db
+                assert isinstance(db["archived"], bool)
+
+
+@pytest.mark.asyncio
+async def test_query_database_by_data_source_id_roundtrip(server_params, _check_env):
+    """list_databases → query_database(data_source_id=...) returns the same DB's pages."""
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            dbs = _parse_result(await session.call_tool("list_databases", {"limit": 5}))
+            if not isinstance(dbs, list) or not dbs:
+                pytest.skip("No databases discoverable by the integration")
+            # Pick the first non-archived DB that has at least one data_source
+            db = None
+            for d in dbs:
+                if not d.get("archived") and d.get("data_sources"):
+                    db = d
+                    break
+            if db is None:
+                pytest.skip("No non-archived discoverable DBs")
+
+            ds_id = db["data_sources"][0]["id"]
+            result = await session.call_tool(
+                "query_database",
+                {"data_source_id": ds_id, "limit": 3},
+            )
+            data = _parse_result(result)
+            assert isinstance(data, list), f"Expected list, got: {data}"
+
+
+@pytest.mark.asyncio
+async def test_create_page_roundtrip(server_params, _check_env):
+    """create_page auto-coerces simple values, validates against the DS schema,
+    and the resulting page is queryable via query_database(data_source_id=...)."""
+    import uuid
+
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            dbs = _parse_result(await session.call_tool("list_databases", {"limit": 10}))
+            if not isinstance(dbs, list) or not dbs:
+                pytest.skip("No databases discoverable by the integration")
+
+            # Find a DB whose first property is a title (most are); we'll write to it.
+            target = None
+            for d in dbs:
+                if d.get("archived"):
+                    continue
+                ds_id = (d.get("data_sources") or [{}])[0].get("id")
+                if not ds_id:
+                    continue
+                try:
+                    schema_result = await session.call_tool(
+                        "get_database_schema", {"database_id": d["id"]}
+                    )
+                    schema = _parse_result(schema_result)
+                except Exception:
+                    continue
+                if isinstance(schema, dict) and schema.get("data_sources"):
+                    ds_schema = schema["data_sources"][0].get("schema", {})
+                    props = ds_schema.get("properties", {})
+                    title_prop = next(
+                        (n for n, p in props.items() if p.get("type") == "title"),
+                        None,
+                    )
+                    if title_prop:
+                        target = (ds_id, title_prop)
+                        break
+            if target is None:
+                pytest.skip("No DB with a title property found")
+            ds_id, title_prop = target
+
+            unique_name = f"[TEST] generic-crud-{uuid.uuid4().hex[:8]}"
+            created = await session.call_tool(
+                "create_page",
+                {
+                    "data_source_id": ds_id,
+                    "properties": {title_prop: unique_name},
+                    "content": "# Test page\n\nBody created by generic CRUD test.",
+                },
+            )
+            created_data = _parse_result(created)
+            if "error" in created_data:
+                # Some workspaces may not allow integration-driven creates in
+                # certain DBs — skip rather than fail so we don't false-positive.
+                pytest.skip(f"Could not create page on this workspace: {created_data['error']}")
+            assert "id" in created_data, f"create_page returned no id: {created_data}"
+
+            try:
+                # Verify it's queryable now via the data_source_id path
+                fetched = await session.call_tool(
+                    "query_database",
+                    {
+                        "data_source_id": ds_id,
+                        "filter": {
+                            "property": title_prop,
+                            "title": {"equals": unique_name},
+                        },
+                    },
+                )
+                fetched_data = _parse_result(fetched)
+                assert isinstance(fetched_data, list), f"Expected list, got: {fetched_data}"
+                assert any(p.get("id") == created_data["id"] for p in fetched_data), (
+                    f"Created page not found via query: {fetched_data}"
+                )
+            finally:
+                try:
+                    await session.call_tool("archive_item", {"page_id": created_data["id"]})
+                except Exception:
+                    pass
+
+
+@pytest.mark.asyncio
+async def test_create_page_invalid_property_returns_error(server_params, _check_env):
+    """create_page with a property not in the schema returns a clean error (not a Notion 400)."""
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            dbs = _parse_result(await session.call_tool("list_databases", {"limit": 10}))
+            if not isinstance(dbs, list) or not dbs:
+                pytest.skip("No databases discoverable by the integration")
+
+            ds_id = None
+            for d in dbs:
+                if not d.get("archived") and d.get("data_sources"):
+                    ds_id = d["data_sources"][0]["id"]
+                    break
+            if ds_id is None:
+                pytest.skip("No non-archived discoverable DBs")
+
+            result = await session.call_tool(
+                "create_page",
+                {
+                    "data_source_id": ds_id,
+                    "properties": {
+                        "Name": "[TEST] should-not-exist",
+                        "NonExistentPropertyXYZ": "x",
+                    },
+                },
+            )
+            data = _parse_result(result)
+            assert isinstance(data, dict), f"Expected error dict, got: {data}"
+            assert "error" in data
+            assert "NonExistentPropertyXYZ" in data["error"]

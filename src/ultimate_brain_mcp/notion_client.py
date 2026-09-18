@@ -678,9 +678,7 @@ class NotionClient:
             params: dict = {"page_size": 100}
             if cursor:
                 params["start_cursor"] = cursor
-            resp = await self._request(
-                "GET", f"/data_sources/{ds_id}/templates", params=params
-            )
+            resp = await self._request("GET", f"/data_sources/{ds_id}/templates", params=params)
             data = resp.json()
             all_results.extend(data.get("templates", []))
             if not data.get("has_more"):
@@ -757,9 +755,7 @@ class NotionClient:
 
         return {"database_id": database_id, "data_sources": sources}
 
-    async def update_database_schema(
-        self, data_source_id: str, properties: dict
-    ) -> dict:
+    async def update_database_schema(self, data_source_id: str, properties: dict) -> dict:
         """PATCH /v1/data_sources/{id} with a ``properties`` dict that can
         ADD/UPDATE/DELETE schema entries.
 
