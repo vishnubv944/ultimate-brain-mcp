@@ -3464,39 +3464,60 @@ async def list_databases(
 ) -> list[dict] | dict:
     """List every Notion database shared with the integration.
 
-    Discovers databases via Notion's ``/search`` endpoint with ``object=database``.
-    Use this to find databases that aren't in the configured SECONDARY_DB_ENV_MAP —
-    then pass the returned ``id`` (or one of its ``data_sources[].id``) to
-    ``query_database``, ``create_page``, or ``get_database_schema``.
+    Discovers databases via Notion's ``/search`` endpoint and groups the
+    returned data sources under their parent databases (one DB can have
+    multiple data sources). Use this to find databases that aren't in the
+    configured SECONDARY_DB_ENV_MAP — then pass a value from
+    ``data_sources[].id`` to ``query_database``, ``create_page``, or
+    ``get_database_schema``.
 
     Read-only. The integration must already have access to the database."""
     app = _ctx(ctx)
+    # As of Notion API 2025-09-03, /search's object filter accepts only
+    # 'page' or 'data_source' (not 'database'). Each DB has 1+ data sources,
+    # so filtering on data_source surfaces every database shared with us.
     try:
         results = await app.client.search(
             query or "",
-            filter={"value": "database", "property": "object"},
+            filter={"value": "data_source", "property": "object"},
         )
     except NotionAPIError as e:
         return _handle_api_error(e)
 
-    databases: list[dict] = []
-    for db in results[:limit]:
-        title_parts = db.get("title", [])
+    # Group data sources by parent database so callers see one entry per DB
+    # with its full set of data sources, instead of N entries for the same DB.
+    by_db: dict[str, dict] = {}
+    for ds in results:
+        parent = ds.get("parent") or {}
+        db_id: str = parent.get("database_id") or ds.get("id") or ""
+        title_parts = ds.get("title", [])
         title = "".join(t.get("plain_text", "") for t in title_parts) if title_parts else ""
-        if query and query.lower() not in title.lower():
-            continue
-        databases.append(
+        entry = by_db.setdefault(
+            db_id,
             {
-                "id": db.get("id"),
+                "id": db_id,
                 "title": title,
-                "url": db.get("url"),
-                "archived": bool(db.get("archived")),
-                "last_edited": db.get("last_edited_time"),
-                "data_sources": db.get("data_sources"),
-                "icon": db.get("icon"),
+                "url": ds.get("url"),
+                "archived": bool(ds.get("archived")),
+                "last_edited": ds.get("last_edited_time"),
+                "icon": ds.get("icon"),
+                "data_sources": [],
+            },
+        )
+        entry["data_sources"].append(
+            {
+                "id": ds.get("id"),
+                "name": title or None,
+                "is_inline": ds.get("is_inline"),
+                "database_type": ds.get("database_type"),
             }
         )
-    return databases
+
+    databases = list(by_db.values())
+    if query:
+        ql = query.lower()
+        databases = [d for d in databases if ql in (d.get("title") or "").lower()]
+    return databases[:limit]
 
 
 @mcp.tool(
