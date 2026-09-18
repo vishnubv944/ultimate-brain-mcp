@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ultimate Brain MCP is a Python MCP (Model Context Protocol) server that exposes Thomas Frank's Ultimate Brain Notion system as 51 tools for AI assistants. Built on Anthropic's FastMCP SDK with async httpx for Notion API calls.
+Ultimate Brain MCP is a Python MCP (Model Context Protocol) server that exposes Thomas Frank's Ultimate Brain Notion system as 50 tools for AI assistants. Built on Anthropic's FastMCP SDK with async httpx for Notion API calls.
 
 ## Common Commands
 
